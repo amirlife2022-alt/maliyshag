@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1B2E">
+<title>Малый шаг — трекер привычек</title>
+<meta name="description" content="Малый шаг: трекер привычек. Отмечай привычки одним касанием, следи за сериями и прогрессом.">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B1B2E; --bg2:#0E2238; --card:#122640; --card2:#173050; --line:#22406A; --line2:#2C4E7E;
+  --text:#EAF2FA; --muted:#8FA6BF; --dim:#5F7894;
+  --green:#3FB27F; --green2:#2A8F63; --greenSoft:rgba(63,178,127,.16);
+  --gold:#E8B04A; --rose:#E06C75; --teal:#3BB0BA;
+  --r:18px; --r2:14px;
+  --safeB:max(env(safe-area-inset-bottom),var(--tg-safe-area-inset-bottom,0px));
+  --safeT:var(--tg-content-safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.35}
+body{min-height:100dvh;overscroll-behavior-y:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input{font:inherit;color:inherit}
+.app{max-width:980px;margin:0 auto;padding:calc(14px + var(--safeT)) 16px calc(96px + var(--safeB))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 2px 14px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--green),#1E7A55);display:grid;place-items:center;box-shadow:0 6px 18px rgba(63,178,127,.25)}
+.brand h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.2px}
+.brand p{margin:0;color:var(--muted);font-size:12.5px}
+.sync{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
+.sync.local i{background:var(--gold)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.stack>*+*{margin-top:12px}
+.h2{display:flex;align-items:baseline;justify-content:space-between;margin:20px 4px 10px}
+.h2 h2{font-size:15px;margin:0;font-weight:700;color:var(--text)}
+.h2 span{font-size:12.5px;color:var(--muted)}
+
+.switch{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px}
+.switch b{font-weight:700;font-size:15px}
+.switch small{display:block;color:var(--muted);font-size:12px;font-weight:500;text-align:center}
+.arrow{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--card2);color:var(--text)}
+.arrow:disabled{opacity:.3;cursor:default}
+
+.hero{display:flex;align-items:center;gap:18px;background:linear-gradient(135deg,#143456,#11284A 60%,#0F2440);}
+.ring{position:relative;width:104px;height:104px;flex:none}
+.ring svg{display:block}
+.ring .val{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring .val b{font-size:26px;font-weight:800;line-height:1}
+.ring .val small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.hero h3{margin:0 0 4px;font-size:17px;font-weight:800}
+.hero p{margin:0;color:var(--muted);font-size:13.5px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+
+.habits{display:grid;gap:10px}
+@media(min-width:720px){.habits{grid-template-columns:1fr 1fr}}
+.habit{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:12px 12px 12px 12px;transition:background .18s,border-color .18s,transform .08s}
+.habit:active{transform:scale(.985)}
+.habit .em{width:42px;height:42px;border-radius:12px;background:var(--card2);display:grid;place-items:center;font-size:21px;flex:none}
+.habit .tx{flex:1;min-width:0}
+.habit .tx b{display:block;font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.habit .tx small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.check{width:30px;height:30px;border-radius:50%;border:2px solid var(--line2);display:grid;place-items:center;flex:none;transition:all .18s}
+.check svg{opacity:0;transform:scale(.6);transition:all .18s}
+.habit.done{background:linear-gradient(90deg,rgba(63,178,127,.18),rgba(63,178,127,.08));border-color:rgba(63,178,127,.55)}
+.habit.done .check{background:var(--green);border-color:var(--green)}
+.habit.done .check svg{opacity:1;transform:scale(1)}
+.habit.done .tx b{color:#CFF3E1}
+.habit.off{opacity:.45;pointer-events:none}
+
+.quote{background:transparent;border:1px dashed var(--line2);color:var(--muted);font-size:13px;text-align:center;padding:14px 18px;border-radius:var(--r)}
+.quote b{color:var(--text);font-weight:600}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:720px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:12px 14px}
+.kpi small{color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.kpi b{display:block;font-size:24px;font-weight:800;margin-top:4px}
+.kpi em{font-style:normal;color:var(--muted);font-size:12px}
+.kpi.g b{color:var(--green)} .kpi.y b{color:var(--gold)} .kpi.t b{color:var(--teal)} .kpi.r b{color:var(--rose)}
+
+.chart{width:100%;display:block}
+.chart text{fill:var(--dim);font-size:11px;font-family:inherit}
+
+.gridwrap{overflow-x:auto;margin:0 -16px;padding:0 16px;scrollbar-width:thin}
+table.grid{border-collapse:separate;border-spacing:3px;font-size:11px}
+.grid th{color:var(--dim);font-weight:600;text-align:center;min-width:24px}
+.grid th.we{color:#7E8FB8}
+.grid th.td{color:var(--green)}
+.grid th.hn,.grid td.hn{position:sticky;left:0;background:var(--card);z-index:2;text-align:left;font-size:12.5px;font-weight:600;color:var(--text);padding-right:8px;max-width:150px;min-width:118px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:560px){.grid th.hn,.grid td.hn{min-width:40px;max-width:40px;font-size:17px;text-align:center}.grid .nm{display:none}}
+.cell{width:24px;height:24px;border-radius:7px;background:var(--bg2);border:1px solid var(--line);display:block}
+.cell.on{background:var(--green);border-color:var(--green)}
+.cell.fut{opacity:.35;cursor:default}
+.cell.na{opacity:.15;cursor:default}
+.cell.today{box-shadow:0 0 0 2px rgba(63,178,127,.6)}
+@media(min-width:720px){.grid th{min-width:21px}.cell{width:21px;height:21px;border-radius:6px}}
+
+.prog{display:grid;gap:12px}
+.prow .l{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.prow .l span{color:var(--muted)}
+.bar{height:8px;border-radius:99px;background:var(--bg2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green2),var(--green))}
+
+.weeks{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wk{min-width:44px;height:32px;padding:0 8px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);font-size:12px;font-weight:700;color:var(--muted)}
+.wk.on{background:var(--green);border-color:var(--green);color:#06241A}
+.wk:disabled{opacity:.35;cursor:default}
+
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px}
+.heat i{width:12px;height:12px;border-radius:3px;background:var(--bg2);display:block}
+.heat i.l1{background:#1E5A49}.heat i.l2{background:#2A7D5D}.heat i.l3{background:#36A072}.heat i.l4{background:#4FD394}
+.heat i.x{background:transparent}
+.legend{display:flex;align-items:center;gap:4px;justify-content:flex-end;color:var(--dim);font-size:11px;margin-top:10px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+.list{display:grid;gap:8px}
+.li{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:10px 12px}
+.li .em{width:38px;height:38px;border-radius:11px;background:var(--card2);display:grid;place-items:center;font-size:19px;flex:none}
+.li .tx{flex:1;min-width:0}
+.li .tx b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .tx small{color:var(--muted);font-size:12px}
+.mini{width:32px;height:32px;border-radius:9px;background:var(--card2);display:grid;place-items:center;color:var(--muted)}
+.mini:disabled{opacity:.3}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border-radius:14px;background:var(--green);color:#05231A;font-weight:800;font-size:15px}
+.btn.ghost{background:var(--card2);color:var(--text)}
+.btn.danger{background:transparent;color:var(--rose);border:1px solid rgba(224,108,117,.4)}
+.note{color:var(--muted);font-size:12.5px;text-align:center;margin-top:12px}
+
+.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;background:rgba(18,38,64,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.35);width:min(440px,calc(100% - 24px))}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;border-radius:16px;color:var(--muted);font-size:11px;font-weight:700}
+.tab svg{width:22px;height:22px}
+.tab.on{background:var(--greenSoft);color:var(--green)}
+
+.scrim{position:fixed;inset:0;background:rgba(3,10,20,.6);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;bottom:0;z-index:41;width:min(560px,100%);transform:translate(-50%,105%);transition:transform .25s cubic-bezier(.2,.8,.2,1);background:var(--bg2);border:1px solid var(--line);border-bottom:0;border-radius:24px 24px 0 0;padding:10px 18px calc(18px + var(--safeB));max-height:92dvh;overflow:auto}
+.sheet.on{transform:translate(-50%,0)}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line2);margin:0 auto 14px}
+.sheet h3{margin:0 0 14px;font-size:18px}
+.field{margin-bottom:14px}
+.field label{display:block;color:var(--muted);font-size:12.5px;font-weight:700;margin-bottom:6px}
+.inp{width:100%;height:48px;border-radius:12px;border:1px solid var(--line2);background:var(--card);padding:0 14px;font-size:15px;outline:none}
+.inp:focus{border-color:var(--green)}
+.emojis{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.emojis button{height:40px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:19px}
+.emojis button.on{border-color:var(--green);background:var(--greenSoft)}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;height:38px;border-radius:9px;font-weight:700;font-size:13.5px;color:var(--muted)}
+.seg button.on{background:var(--card2);color:var(--text)}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:44px;height:44px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:20px}
+.stepper b{min-width:44px;text-align:center;font-size:20px}
+.stepper span{color:var(--muted);font-size:13px}
+.sugg{display:flex;flex-wrap:wrap;gap:6px}
+.sugg button{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 11px;font-size:12.5px;font-weight:600}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+
+.toast{position:fixed;left:50%;top:calc(16px + var(--safeT));transform:translate(-50%,-240%);transition:transform .3s;background:var(--green);color:#05231A;font-weight:800;padding:10px 18px;border-radius:999px;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.3);white-space:nowrap}
+.toast.on{transform:translate(-50%,0)}
+.empty{text-align:center;padding:28px 16px}
+.empty p{color:var(--muted);margin:6px 0 16px}
+.fade{animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.loading{display:grid;place-items:center;height:60dvh;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06241A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17c3 0 4-3 6-3s3 3 6 3 4-4 4-4"/><path d="M4 11c3 0 4-3 6-3s3 3 6 3 4-4 4-4"/></svg></div>
+      <div><h1>Малый шаг</h1><p>трекер привычек</p></div>
+    </div>
+    <div class="sync" id="sync"></div>
+  </header>
+  <main id="view"><div class="loading">Загрузка…</div></main>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button class="tab on" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Сегодня</button>
+  <button class="tab" data-tab="month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Месяц</button>
+  <button class="tab" data-tab="year"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Год</button>
+  <button class="tab" data-tab="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>Привычки</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Telegram ---------- */
+const tg = window.Telegram && window.Telegram.WebApp;
+const inTg = !!(tg && tg.initData);
+try {
+  if (tg) {
+    tg.ready(); tg.expand();
+    if (tg.setHeaderColor) tg.setHeaderColor('#0B1B2E');
+    if (tg.setBackgroundColor) tg.setBackgroundColor('#0B1B2E');
+    if (tg.setBottomBarColor) tg.setBottomBarColor('#0B1B2E');
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  }
+} catch (e) {}
+const haptic = (kind) => { try {
+  if (!tg || !tg.HapticFeedback) return;
+  if (kind === 'success') tg.HapticFeedback.notificationOccurred('success');
+  else if (kind === 'select') tg.HapticFeedback.selectionChanged();
+  else tg.HapticFeedback.impactOccurred('light');
+} catch (e) {} };
+const ask = (text) => new Promise(res => {
+  try { if (inTg && tg.showConfirm) return tg.showConfirm(text, ok => res(!!ok)); } catch (e) {}
+  res(window.confirm(text));
+});
+
+/* ---------- Storage: Telegram CloudStorage or localStorage ---------- */
+const useCloud = inTg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9');
+const LP = 'ms_';
+const Store = {
+  getAll() {
+    return new Promise(resolve => {
+      if (useCloud) {
+        tg.CloudStorage.getKeys((err, keys) => {
+          if (err || !keys || !keys.length) return resolve({});
+          tg.CloudStorage.getItems(keys, (e2, vals) => resolve(e2 ? {} : (vals || {})));
+        });
+      } else {
+        const out = {};
+        try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith(LP)) out[k.slice(LP.length)] = localStorage.getItem(k); } } catch (e) {}
+        resolve(out);
+      }
+    });
+  },
+  set(key, val) {
+    if (useCloud) { try { tg.CloudStorage.setItem(key, val, () => {}); } catch (e) {} }
+    try { localStorage.setItem(LP + key, val); } catch (e) {}
+  },
+  remove(key) {
+    if (useCloud) { try { tg.CloudStorage.removeItem(key, () => {}); } catch (e) {} }
+    try { localStorage.removeItem(LP + key); } catch (e) {}
+  }
+};
+
+/* ---------- Dates ---------- */
+const pad = n => String(n).padStart(2, '0');
+const dk = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const pd = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const today = () => { const t = new Date(); t.setHours(12, 0, 0, 0); return t; };
+const TK = () => dk(today());
+const dim = (y, m) => new Date(y, m + 1, 0).getDate();
+const monday = d => { const x = new Date(d); const w = (x.getDay() + 6) % 7; x.setDate(x.getDate() - w); return x; };
+const M_NOM = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const M_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const DOW = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const DOW_FULL = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const plural = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; return (m10 === 1 && m100 !== 11) ? a : (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) ? b : c; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- State ---------- */
+const S = { habits: [], d: {}, w: {} };   // d: {'YYYY-MM-DD': [ids]}, w: {'YYYY-MM-DD'(monday): [ids]}
+const UI = { tab: 'today', day: TK(), ym: [today().getFullYear(), today().getMonth()], year: today().getFullYear() };
+const uid = () => Math.random().toString(36).slice(2, 7);
+
+const DEFAULTS = [
+  ['Просыпаться рано', '🌅', 'd'], ['Планировать день', '📋', 'd'], ['Читать 20 минут', '📚', 'd'],
+  ['Глубокая работа 60 мин', '🧠', 'd'], ['Тренировка 30 минут', '🏋️', 'd'], ['Здоровое питание', '🥗', 'd'],
+  ['Выпить 2 литра воды', '💧', 'd'], ['Общаться с людьми', '🤝', 'd'],
+  ['Планирование недели', '🗓️', 'w'], ['Генеральная уборка', '🧹', 'w'], ['Созвон с близкими', '📞', 'w']
+];
+const SUGGEST = [
+  ['Намаз вовремя', '🕌'], ['Чтение Корана', '📖'], ['Утренние азкары', '🌄'], ['Вечерние азкары', '🌙'],
+  ['Садака', '🤲'], ['Без соцсетей до обеда', '📵'], ['Прогулка 30 минут', '🚶'], ['Сон до 23:00', '😴'],
+  ['Изучать язык', '🗣️'], ['Дневник благодарности', '✍️'], ['Растяжка', '🧘'], ['Без сладкого', '🍬']
+];
+const EMOJIS = ['✅','🌅','📋','📚','🧠','🏋️','🥗','💧','🤝','🕌','📖','🤲','🌙','🚶','😴','🧘','✍️','🗣️','💰','🎯','🧹','📞','📵','❤️'];
+
+/* persistence: habits -> 'habits'; daily -> 'd_YYYY_MM' {day:'id,id'}; weekly -> 'w_YYYY' {'MM-DD':'id,id'} */
+const dirty = new Set(); let saveT = null;
+const markDirty = key => { dirty.add(key); clearTimeout(saveT); saveT = setTimeout(flush, 350); };
+function flush() {
+  for (const key of dirty) {
+    if (key === 'habits') { Store.set('habits', JSON.stringify(S.habits)); continue; }
+    const obj = {};
+    if (key[0] === 'd') {
+      const [, y, m] = key.split('_');
+      for (const k in S.d) if (k.startsWith(y + '-' + m + '-') && S.d[k].length) obj[+k.slice(8)] = S.d[k].join(',');
+    } else {
+      const [, y] = key.split('_');
+      for (const k in S.w) if (k.startsWith(y + '-') && S.w[k].length) obj[k.slice(5)] = S.w[k].join(',');
+    }
+    if (Object.keys(obj).length) Store.set(key, JSON.stringify(obj)); else Store.remove(key);
+  }
+  dirty.clear();
+}
+window.addEventListener('pagehide', flush);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+
+async function load() {
+  const all = await Store.getAll();
+  for (const key in all) {
+    let v; try { v = JSON.parse(all[key]); } catch (e) { continue; }
+    if (key === 'habits' && Array.isArray(v)) S.habits = v;
+    else if (/^d_\d{4}_\d{2}$/.test(key)) { const [, y, m] = key.split('_'); for (const day in v) S.d[y + '-' + m + '-' + pad(day)] = String(v[day]).split(',').filter(Boolean); }
+    else if (/^w_\d{4}$/.test(key)) { const [, y] = key.split('_'); for (const md in v) S.w[y + '-' + md] = String(v[md]).split(',').filter(Boolean); }
+  }
+  if (!all.habits) {
+    const start = TK();
+    S.habits = DEFAULTS.map(([name, emoji, type]) => ({ id: uid(), name, emoji, type, goal: type === 'd' ? 31 : 4, created: start }));
+    markDirty('habits');
+  }
+}
+
+/* ---------- Logic ---------- */
+const daily = () => S.habits.filter(h => h.type === 'd');
+const weekly = () => S.habits.filter(h => h.type === 'w');
+const active = (h, k) => h.created <= k;
+const isDone = (h, k) => !!(h.type === 'd' ? S.d[k] : S.w[k])?.includes(h.id);
+function toggle(h, k) {
+  const store = h.type === 'd' ? S.d : S.w;
+  const arr = store[k] || (store[k] = []);
+  const i = arr.indexOf(h.id);
+  if (i >= 0) arr.splice(i, 1); else arr.push(h.id);
+  // if user marks a day before the habit's start, move the start back so history counts
+  if (k < h.created) { h.created = k; markDirty('habits'); }
+  markDirty(h.type === 'd' ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4));
+  return i < 0;
+}
+function dayStat(k) {
+  const hs = daily().filter(h => active(h, k));
+  if (!hs.length) return null;
+  const done = hs.filter(h => isDone(h, k)).length;
+  return { done, total: hs.length, pct: done / hs.length };
+}
+function streak(h) {
+  const tk = TK();
+  if (h.type === 'd') {
+    let d = today(); if (!isDone(h, dk(d))) d = addD(d, -1);
+    let n = 0; while (active(h, dk(d)) && isDone(h, dk(d))) { n++; d = addD(d, -1); }
+    return n;
+  }
+  let d = monday(today()); if (!isDone(h, dk(d))) d = addD(d, -7);
+  let n = 0; while (isDone(h, dk(d))) { n++; d = addD(d, -7); }
+  return n;
+}
+function bestStreak(h, from, to) {
+  // best run of consecutive days within [from,to] (daily habits)
+  let d = pd(from < h.created ? h.created : from), best = 0, run = 0;
+  const end = to;
+  while (dk(d) <= end) { if (isDone(h, dk(d))) { run++; if (run > best) best = run; } else run = 0; d = addD(d, 1); }
+  return best;
+}
+function monthStats(y, m) {
+  const n = dim(y, m), tk = TK();
+  const first = y + '-' + pad(m + 1) + '-01', last = y + '-' + pad(m + 1) + '-' + pad(n);
+  let done = 0, possible = 0, perfect = 0, elapsed = 0;
+  const series = [];
+  for (let i = 1; i <= n; i++) {
+    const k = y + '-' + pad(m + 1) + '-' + pad(i);
+    if (k > tk) { series.push(null); continue; }
+    const s = dayStat(k);
+    if (s) { elapsed++; done += s.done; possible += s.total; if (s.done === s.total) perfect++; series.push(s.pct); }
+    else series.push(null);
+  }
+  const end = last < tk ? last : tk;
+  let best = 0; for (const h of daily()) best = Math.max(best, bestStreak(h, first, end));
+  const left = last < tk ? 0 : (first > tk ? n : n - today().getDate());
+  return { n, done, possible, pct: possible ? done / possible : 0, perfect, best, left, series, elapsed };
+}
+
+/* ---------- Chart (smooth area, monotone cubic) ---------- */
+function smoothPath(pts) {
+  if (pts.length < 2) return pts.length ? `M${pts[0][0]},${pts[0][1]}` : '';
+  const n = pts.length, dx = [], dy = [], m = [], t = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = pts[i + 1][0] - pts[i][0]; dy[i] = pts[i + 1][1] - pts[i][1]; m[i] = dy[i] / dx[i]; }
+  t[0] = m[0]; t[n - 1] = m[n - 2];
+  for (let i = 1; i < n - 1; i++) t[i] = (m[i - 1] * m[i] <= 0) ? 0 : (m[i - 1] + m[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+    if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+  }
+  let p = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    p += ` C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + t[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - t[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+  }
+  return p;
+}
+function areaChart(values, labels, W, H, opts = {}) {
+  const pl = 42, pr = 10, pt = 12, pb = 24, iw = W - pl - pr, ih = H - pt - pb, n = values.length;
+  const X = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), Y = v => pt + ih - v * ih;
+  let g = '';
+  for (const v of [0, .5, 1]) g += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#22406A" stroke-dasharray="${v ? '3 4' : ''}"/><text x="${pl - 8}" y="${Y(v) + 4}" text-anchor="end">${v * 100}%</text>`;
+  labels.forEach((l, i) => { if (l !== '') g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle">${l}</text>`; });
+  // contiguous segments
+  const segs = []; let cur = [];
+  values.forEach((v, i) => { if (v == null) { if (cur.length) segs.push(cur); cur = []; } else cur.push([X(i), Y(v)]); });
+  if (cur.length) segs.push(cur);
+  let body = '';
+  for (const s of segs) {
+    const line = smoothPath(s);
+    body += `<path d="${line} L${s[s.length - 1][0].toFixed(1)},${Y(0)} L${s[0][0].toFixed(1)},${Y(0)} Z" fill="url(#ga)"/>`;
+    body += `<path d="${line}" fill="none" stroke="#3FB27F" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  if (opts.mark != null && values[opts.mark] != null) body += `<circle cx="${X(opts.mark)}" cy="${Y(values[opts.mark])}" r="5" fill="#0B1B2E" stroke="#3FB27F" stroke-width="2.6"/>`;
+  if (!segs.length) body += `<text x="${pl + iw / 2}" y="${pt + ih / 2}" text-anchor="middle" style="fill:#8FA6BF;font-size:13px">Данных пока нет</text>`;
+  return `<svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3FB27F" stop-opacity=".45"/><stop offset="1" stop-color="#3FB27F" stop-opacity="0"/></linearGradient></defs>${g}${body}</svg>`;
+}
+function ring(p, size = 104) {
+  const r = size / 2 - 8, c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="#0E2238" stroke-width="10" fill="none"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="url(#gr)" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - p)}" transform="rotate(-90 ${size / 2} ${size / 2})" style="transition:stroke-dashoffset .5s"/><defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4FD394"/><stop offset="1" stop-color="#2A8F63"/></linearGradient></defs></svg>`;
+}
+
+/* ---------- Views ---------- */
+const view = document.getElementById('view');
+const ICO = {
+  l: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+  r: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  ok: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06241A" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+  up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>',
+  dn: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>',
+  plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+};
+function dayLabel(k) {
+  const t = TK(), y = dk(addD(today(), -1));
+  return k === t ? 'Сегодня' : k === y ? 'Вчера' : DOW_FULL[pd(k).getDay()];
+}
+function heroText(s) {
+  if (!s) return ['Добавь первую привычку', 'Начни с одного малого шага'];
+  if (s.done === s.total) return ['Идеальный день! 🎉', 'Все привычки выполнены'];
+  if (s.done === 0) return ['Начнём?', 'Один малый шаг уже меняет день'];
+  if (s.pct >= .5) return ['Больше половины ✨', `Осталось ${s.total - s.done} ${plural(s.total - s.done, 'привычка', 'привычки', 'привычек')}`];
+  return ['Хорошее начало', `Осталось ${s.total - s.done} ${plural(s.total - s.done, 'привычка', 'привычки', 'привычек')}`];
+}
+
+function renderToday() {
+  const k = UI.day, d = pd(k), s = dayStat(k), [h1, h2] = heroText(s);
+  const ms = monthStats(d.getFullYear(), d.getMonth());
+  const fire = Math.max(0, ...daily().map(streak));
+  const hs = daily();
+  const wk = dk(monday(d)), wkEnd = addD(monday(d), 6);
+  const ws = weekly();
+  const habitCard = (h, key) => {
+    const done = isDone(h, key), st = streak(h);
+    const sub = h.type === 'd'
+      ? `🔥 ${st} ${plural(st, 'день', 'дня', 'дней')} · ${monthCount(h, d)}/${Math.min(h.goal, dim(d.getFullYear(), d.getMonth()))} за месяц`
+      : `🔥 ${st} ${plural(st, 'неделя', 'недели', 'недель')} подряд`;
+    return `<button class="habit ${done ? 'done' : ''}" data-act="tog" data-id="${h.id}" data-k="${key}"><span class="em">${esc(h.emoji)}</span><span class="tx"><b>${esc(h.name)}</b><small>${sub}</small></span><span class="check">${ICO.ok}</span></button>`;
+  };
+  view.innerHTML = `<div class="stack fade">
+    <div class="switch"><button class="arrow" data-act="day" data-n="-1">${ICO.l}</button><div><b>${dayLabel(k)}</b><small>${d.getDate()} ${M_GEN[d.getMonth()]}${d.getFullYear() !== today().getFullYear() ? ' ' + d.getFullYear() : ''}</small></div><button class="arrow" data-act="day" data-n="1" ${k >= TK() ? 'disabled' : ''}>${ICO.r}</button></div>
+    <div class="card hero"><div class="ring">${ring(s ? s.pct : 0)}<div class="val"><div><b>${s ? Math.round(s.pct * 100) : 0}%</b><small>${s ? s.done + ' из ' + s.total : '—'}</small></div></div></div>
+      <div><h3>${h1}</h3><p>${h2}</p><div class="chips"><span class="chip">🔥 серия ${fire}</span><span class="chip">⭐ идеальных дней: ${ms.perfect}</span></div></div></div>
+  </div>
+  ${hs.length ? `<div class="h2"><h2>Ежедневные</h2><span>нажми, чтобы отметить</span></div><div class="habits">${hs.map(h => habitCard(h, k)).join('')}</div>` : ''}
+  ${ws.length ? `<div class="h2"><h2>На этой неделе</h2><span>${monday(d).getDate()} ${M_GEN[monday(d).getMonth()]} – ${wkEnd.getDate()} ${M_GEN[wkEnd.getMonth()]}</span></div><div class="habits">${ws.map(h => habitCard(h, wk)).join('')}</div>` : ''}
+  ${!S.habits.length ? `<div class="card empty"><b>Пока нет привычек</b><p>Добавь первую, и цепочка начнётся сегодня.</p><button class="btn" data-act="add">${ICO.plus} Добавить привычку</button></div>` : ''}
+  <div class="h2"></div><div class="quote">«Самые любимые Аллаху дела — постоянные, даже если их мало»<br><b>Бухари, Муслим</b></div>`;
+}
+function monthCount(h, d) {
+  const y = d.getFullYear(), m = d.getMonth(), p = y + '-' + pad(m + 1) + '-'; let c = 0;
+  for (const k in S.d) if (k.startsWith(p) && S.d[k].includes(h.id)) c++;
+  return c;
+}
+
+function renderMonth() {
+  const [y, m] = UI.ym, st = monthStats(y, m), n = st.n, tk = TK();
+  const W = Math.max(280, view.clientWidth - 34);
+  const labels = Array.from({ length: n }, (_, i) => (i === 0 || (i + 1) % 5 === 0) ? i + 1 : '');
+  const markIdx = (tk.startsWith(y + '-' + pad(m + 1))) ? today().getDate() - 1 : null;
+  const isCur = y === today().getFullYear() && m === today().getMonth();
+  const future = (y + '-' + pad(m + 1) + '-01') > tk;
+  let head = '<tr><th class="hn"></th>';
+  for (let i = 1; i <= n; i++) { const dd = new Date(y, m, i), k = dk(dd), we = dd.getDay() === 0 || dd.getDay() === 6; head += `<th class="${we ? 'we' : ''} ${k === tk ? 'td' : ''}">${DOW[dd.getDay()].slice(0, 2)}<br>${i}</th>`; }
+  head += '</tr>';
+  const rows = daily().map(h => {
+    let r = `<tr><td class="hn" title="${esc(h.name)}">${esc(h.emoji)} <span class="nm">${esc(h.name)}</span></td>`;
+    for (let i = 1; i <= n; i++) {
+      const k = y + '-' + pad(m + 1) + '-' + pad(i);
+      const cls = k > tk ? 'fut' : '';
+      r += `<td><button class="cell ${isDone(h, k) ? 'on' : ''} ${cls} ${k === tk ? 'today' : ''}" ${k > tk ? 'disabled' : ''} data-act="tog" data-id="${h.id}" data-k="${k}" aria-label="${esc(h.name)} ${i}"></button></td>`;
+    }
+    return r + '</tr>';
+  }).join('');
+  const prog = daily().map(h => {
+    const c = monthCount(h, new Date(y, m, 1)), goal = Math.min(h.goal, n), p = goal ? Math.min(1, c / goal) : 0;
+    return `<div class="prow"><div class="l"><b>${esc(h.emoji)} ${esc(h.name)}</b><span>${c}/${goal} · ${Math.round(p * 100)}%</span></div><div class="bar"><i style="width:${p * 100}%"></i></div></div>`;
+  }).join('');
+  // weekly habits in month
+  const weeks = []; const lastDay = new Date(y, m, n, 12);
+  for (let wd = monday(new Date(y, m, 1, 12)); wd <= lastDay; wd = addD(wd, 7)) weeks.push(new Date(wd));
+  const wkHtml = weekly().map(h => `<div class="prow"><div class="l"><b>${esc(h.emoji)} ${esc(h.name)}</b><span>${weeks.filter(w => isDone(h, dk(w))).length}/${weeks.length} нед.</span></div><div class="weeks">${weeks.map(w => { const k = dk(w); return `<button class="wk ${isDone(h, k) ? 'on' : ''}" ${k > tk ? 'disabled' : ''} data-act="tog" data-id="${h.id}" data-k="${k}">${w.getDate()}.${pad(w.getMonth() + 1)}</button>`; }).join('')}</div></div>`).join('');
+
+  view.innerHTML = `<div class="stack fade">
+    <div class="switch"><button class="arrow" data-act="mon" data-n="-1">${ICO.l}</button><div><b>${M_NOM[m][0].toUpperCase() + M_NOM[m].slice(1)} ${y}</b><small>${isCur ? 'текущий месяц' : future ? 'впереди' : 'архив'}</small></div><button class="arrow" data-act="mon" data-n="1">${ICO.r}</button></div>
+    <div class="kpis">
+      <div class="kpi g"><small>Выполнено</small><b>${Math.round(st.pct * 100)}%</b><em>${st.done} из ${st.possible} отметок</em></div>
+      <div class="kpi y"><small>Идеальные дни</small><b>${st.perfect}</b><em>все привычки за день</em></div>
+      <div class="kpi t"><small>Лучшая серия</small><b>${st.best}</b><em>${plural(st.best, 'день', 'дня', 'дней')} подряд</em></div>
+      <div class="kpi r"><small>Осталось</small><b>${st.left}</b><em>${plural(st.left, 'день', 'дня', 'дней')} в месяце</em></div>
+    </div>
+    <div class="card"><div class="h2" style="margin:0 0 8px"><h2>Прогресс по дням</h2><span>доля выполненных привычек</span></div>${areaChart(st.series, labels, W, 210, { mark: markIdx })}</div>
+    ${daily().length ? `<div class="card"><div class="h2" style="margin:0 0 10px"><h2>Отметки</h2><span>нажми на клетку</span></div><div class="gridwrap"><table class="grid">${head}${rows}</table></div></div>
+    <div class="card"><div class="h2" style="margin:0 0 12px"><h2>Цели на месяц</h2><span>выполнено / цель</span></div><div class="prog">${prog}</div></div>` : ''}
+    ${weekly().length ? `<div class="card"><div class="h2" style="margin:0 0 12px"><h2>Еженедельные</h2><span>недели с понедельника</span></div><div class="prog">${wkHtml}</div></div>` : ''}
+  </div>`;
+}
+
+function renderYear() {
+  const y = UI.year, tk = TK();
+  const months = Array.from({ length: 12 }, (_, m) => monthStats(y, m));
+  const vals = months.map(s => s.possible ? s.pct : null);
+  const W = Math.max(280, view.clientWidth - 34);
+  let marks = 0, perfect = 0, possible = 0;
+  months.forEach(s => { marks += s.done; perfect += s.perfect; possible += s.possible; });
+  let best = 0; for (const h of daily()) best = Math.max(best, bestStreak(h, y + '-01-01', (y + '-12-31') < tk ? y + '-12-31' : tk));
+  // bar chart
+  const H = 190, pl = 42, pr = 8, pt = 10, pb = 24, iw = W - pl - pr, ih = H - pt - pb, bw = iw / 12;
+  let bars = '';
+  for (const v of [0, .5, 1]) bars += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih - v * ih}" y2="${pt + ih - v * ih}" stroke="#22406A" stroke-dasharray="${v ? '3 4' : ''}"/><text x="${pl - 8}" y="${pt + ih - v * ih + 4}" text-anchor="end">${v * 100}%</text>`;
+  const curM = y === today().getFullYear() ? today().getMonth() : -1;
+  vals.forEach((v, i) => {
+    const x = pl + i * bw + bw * .18, w = bw * .64, h = (v || 0) * ih;
+    bars += `<rect x="${x}" y="${pt}" width="${w}" height="${ih}" rx="6" fill="#0E2238"/>`;
+    if (v) bars += `<rect x="${x}" y="${pt + ih - h}" width="${w}" height="${Math.max(h, 4)}" rx="6" fill="${i === curM ? '#4FD394' : '#2A8F63'}"/>`;
+    bars += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${M_NOM[i].slice(0, 3)}</text>`;
+  });
+  // heatmap
+  const hEnd = addD(monday(new Date(y, 11, 31, 12)), 6); let cells = '';
+  for (let d = monday(new Date(y, 0, 1, 12)); d <= hEnd; d = addD(d, 1)) {
+    const k = dk(d);
+    if (d.getFullYear() !== y) cells += '<i class="x"></i>';
+    else if (k > tk) cells += '<i></i>';
+    else { const s = dayStat(k), p = s ? s.pct : 0; const l = !s || p === 0 ? '' : p < .34 ? 'l1' : p < .67 ? 'l2' : p < 1 ? 'l3' : 'l4'; cells += `<i class="${l}" title="${d.getDate()} ${M_GEN[d.getMonth()]}: ${s ? Math.round(p * 100) + '%' : '—'}"></i>`; }
+  }
+  view.innerHTML = `<div class="stack fade">
+    <div class="switch"><button class="arrow" data-act="yr" data-n="-1">${ICO.l}</button><div><b>${y} год</b><small>${y === today().getFullYear() ? 'текущий год' : 'архив'}</small></div><button class="arrow" data-act="yr" data-n="1">${ICO.r}</button></div>
+    <div class="kpis">
+      <div class="kpi g"><small>За год</small><b>${possible ? Math.round(marks / possible * 100) : 0}%</b><em>выполнение</em></div>
+      <div class="kpi t"><small>Отметок</small><b>${marks}</b><em>ежедневных привычек</em></div>
+      <div class="kpi y"><small>Идеальные дни</small><b>${perfect}</b><em>за год</em></div>
+      <div class="kpi r"><small>Лучшая серия</small><b>${best}</b><em>${plural(best, 'день', 'дня', 'дней')} подряд</em></div>
+    </div>
+    <div class="card"><div class="h2" style="margin:0 0 8px"><h2>По месяцам</h2><span>выполнение за месяц</span></div><svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars}</svg></div>
+    <div class="card"><div class="h2" style="margin:0 0 10px"><h2>Карта года</h2><span>каждая клетка — день</span></div><div class="gridwrap"><div class="heat">${cells}</div></div>
+      <div class="legend">меньше <i style="background:#0E2238"></i><i style="background:#1E5A49"></i><i style="background:#2A7D5D"></i><i style="background:#36A072"></i><i style="background:#4FD394"></i> больше</div></div>
+  </div>`;
+}
+
+function renderHabits() {
+  const item = (h, i, arr) => `<div class="li"><span class="em">${esc(h.emoji)}</span><button class="tx" data-act="edit" data-id="${h.id}" style="text-align:left"><b>${esc(h.name)}</b><small>${h.type === 'd' ? 'каждый день · цель ' + h.goal + ' ' + plural(h.goal, 'день', 'дня', 'дней') + ' в месяц' : 'раз в неделю'}</small></button>
+    <button class="mini" data-act="mv" data-id="${h.id}" data-n="-1" ${i === 0 ? 'disabled' : ''}>${ICO.up}</button><button class="mini" data-act="mv" data-id="${h.id}" data-n="1" ${i === arr.length - 1 ? 'disabled' : ''}>${ICO.dn}</button></div>`;
+  const d = daily(), w = weekly();
+  view.innerHTML = `<div class="stack fade">
+    <button class="btn" data-act="add">${ICO.plus} Добавить привычку</button>
+    ${d.length ? `<div class="h2"><h2>Ежедневные</h2><span>${d.length}</span></div><div class="list">${d.map(item).join('')}</div>` : ''}
+    ${w.length ? `<div class="h2"><h2>Еженедельные</h2><span>${w.length}</span></div><div class="list">${w.map(item).join('')}</div>` : ''}
+    <p class="note">Нажми на привычку, чтобы изменить или удалить.<br>${useCloud ? 'Данные хранятся в облаке Telegram и видны на всех твоих устройствах.' : 'Сейчас данные хранятся только в этом браузере. Открой приложение в Telegram, чтобы они синхронизировались.'}</p>
+  </div>`;
+}
+
+const RENDER = { today: renderToday, month: renderMonth, year: renderYear, habits: renderHabits };
+const render = () => RENDER[UI.tab]();
+
+/* ---------- Sheet (add / edit) ---------- */
+const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
+let draft = null;
+function openSheet(h) {
+  draft = h ? { ...h, isNew: false } : { id: uid(), name: '', emoji: '✅', type: 'd', goal: 31, created: TK(), isNew: true };
+  drawSheet();
+  sheet.classList.add('on'); scrim.classList.add('on');
+  try { if (tg && tg.BackButton) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); } } catch (e) {}
+  if (draft.isNew) setTimeout(() => sheet.querySelector('#nm')?.focus(), 260);
+}
+function closeSheet() {
+  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null;
+  try { if (tg && tg.BackButton) { tg.BackButton.offClick(closeSheet); tg.BackButton.hide(); } } catch (e) {}
+}
+function drawSheet() {
+  const t = draft;
+  sheet.innerHTML = `<div class="grab"></div><h3>${t.isNew ? 'Новая привычка' : 'Изменить привычку'}</h3>
+    <div class="field"><label>Название</label><input id="nm" class="inp" maxlength="40" placeholder="Например: читать 10 страниц" value="${esc(t.name)}"></div>
+    ${t.isNew ? `<div class="field"><label>Идеи</label><div class="sugg">${SUGGEST.map(([n, e]) => `<button data-act="sug" data-n="${esc(n)}" data-e="${e}">${e} ${esc(n)}</button>`).join('')}</div></div>` : ''}
+    <div class="field"><label>Значок</label><div class="emojis">${EMOJIS.map(e => `<button class="${e === t.emoji ? 'on' : ''}" data-act="emo" data-e="${e}">${e}</button>`).join('')}</div></div>
+    <div class="field"><label>Как часто</label><div class="seg"><button class="${t.type === 'd' ? 'on' : ''}" data-act="typ" data-t="d">Каждый день</button><button class="${t.type === 'w' ? 'on' : ''}" data-act="typ" data-t="w">Раз в неделю</button></div></div>
+    ${t.type === 'd' ? `<div class="field"><label>Цель на месяц</label><div class="stepper"><button data-act="goal" data-n="-1">−</button><b>${t.goal}</b><button data-act="goal" data-n="1">+</button><span>${plural(t.goal, 'день', 'дня', 'дней')} в месяц${t.goal >= 31 ? ' (каждый день)' : ''}</span></div></div>` : ''}
+    <button class="btn" data-act="save">Сохранить</button>
+    ${t.isNew ? '' : `<div class="row2"><button class="btn ghost" data-act="close">Отмена</button><button class="btn danger" data-act="del">Удалить</button></div>`}`;
+}
+sheet.addEventListener('input', e => { if (e.target.id === 'nm' && draft) draft.name = e.target.value; });
+scrim.addEventListener('click', closeSheet);
+
+/* ---------- Toast ---------- */
+const toastEl = document.getElementById('toast'); let toastT;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 2200); }
+
+/* ---------- Events ---------- */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act, H = id => S.habits.find(h => h.id === id);
+  if (a === 'tog') {
+    const h = H(b.dataset.id), k = b.dataset.k; if (!h || k > TK()) return;
+    const was = h.type === 'd' ? dayStat(k) : null;
+    const on = toggle(h, k); haptic(on ? 'light' : 'select');
+    const now = h.type === 'd' ? dayStat(k) : null;
+    if (on && now && now.done === now.total && (!was || was.done !== was.total)) { haptic('success'); toast(k === TK() ? 'Идеальный день! 🎉' : 'День закрыт полностью ✨'); }
+    const y = window.scrollY; render(); window.scrollTo(0, y);
+  }
+  else if (a === 'day') { const n = +b.dataset.n, nd = dk(addD(pd(UI.day), n)); if (nd <= TK()) { UI.day = nd; haptic('select'); render(); } }
+  else if (a === 'mon') { let [y, m] = UI.ym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.ym = [y, m]; haptic('select'); render(); }
+  else if (a === 'yr') { UI.year += +b.dataset.n; haptic('select'); render(); }
+  else if (a === 'add') openSheet(null);
+  else if (a === 'edit') openSheet(H(b.dataset.id));
+  else if (a === 'close') closeSheet();
+  else if (a === 'mv') {
+    const h = H(b.dataset.id), group = S.habits.filter(x => x.type === h.type), i = group.indexOf(h), j = i + +b.dataset.n;
+    if (j < 0 || j >= group.length) return;
+    const ai = S.habits.indexOf(group[i]), aj = S.habits.indexOf(group[j]);
+    [S.habits[ai], S.habits[aj]] = [S.habits[aj], S.habits[ai]];
+    markDirty('habits'); haptic('select'); render();
+  }
+  else if (draft) {
+    if (a === 'sug') { draft.name = b.dataset.n; draft.emoji = b.dataset.e; drawSheet(); }
+    else if (a === 'emo') { draft.emoji = b.dataset.e; drawSheet(); }
+    else if (a === 'typ') { draft.type = b.dataset.t; draft.goal = draft.type === 'd' ? 31 : 4; drawSheet(); }
+    else if (a === 'goal') { draft.goal = Math.max(1, Math.min(31, draft.goal + +b.dataset.n)); drawSheet(); }
+    else if (a === 'save') {
+      const name = (draft.name || '').trim();
+      if (!name) { const i = sheet.querySelector('#nm'); i.focus(); i.style.borderColor = 'var(--rose)'; return; }
+      const { isNew, ...h } = draft; h.name = name;
+      if (isNew) S.habits.push(h);
+      else {
+        const old = H(h.id);
+        if (old.type !== h.type) { // type change: old marks no longer apply
+          for (const st of [S.d, S.w]) for (const k in st) { const ix = st[k].indexOf(h.id); if (ix >= 0) { st[k].splice(ix, 1); markDirty(st === S.d ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4)); } }
+          h.created = TK();
+        }
+        Object.assign(old, h);
+      }
+      markDirty('habits'); haptic('success'); closeSheet(); render(); toast(isNew ? 'Привычка добавлена' : 'Сохранено');
+    }
+    else if (a === 'del') {
+      const h = H(draft.id);
+      if (!(await ask(`Удалить «${h.name}» вместе со всеми отметками?`))) return;
+      for (const st of [S.d, S.w]) for (const k in st) { const ix = st[k].indexOf(h.id); if (ix >= 0) { st[k].splice(ix, 1); markDirty(st === S.d ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4)); } }
+      S.habits = S.habits.filter(x => x.id !== h.id);
+      markDirty('habits'); closeSheet(); render(); toast('Привычка удалена');
+    }
+  }
+});
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  UI.tab = b.dataset.tab; haptic('select');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t === b));
+  if (UI.tab === 'today') UI.day = TK();
+  render(); window.scrollTo(0, 0);
+});
+let rT; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (UI.tab === 'month' || UI.tab === 'year') render(); }, 150); });
+
+/* ---------- Start ---------- */
+const syncEl = document.getElementById('sync');
+syncEl.innerHTML = useCloud ? '<i></i>облако Telegram' : '<i></i>на этом устройстве';
+syncEl.classList.toggle('local', !useCloud);
+load().then(() => { flush(); render(); });
+window.__ms = { S, UI, render, monthStats, dayStat, streak, toggle, TK };
+})();
+</script>
+</body>
+</html>
