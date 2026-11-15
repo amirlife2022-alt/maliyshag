@@ -7,11 +7,12 @@
 <title>Малый шаг — трекер привычек</title>
 <meta name="description" content="Малый шаг: трекер привычек. Отмечай привычки одним касанием, следи за сериями и прогрессом.">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{
+:root{color-scheme:dark;
   --bg:#0B1B2E; --bg2:#0E2238; --card:#122640; --card2:#173050; --line:#22406A; --line2:#2C4E7E;
   --text:#EAF2FA; --muted:#8FA6BF; --dim:#5F7894;
   --green:#3FB27F; --green2:#2A8F63; --greenSoft:rgba(63,178,127,.16);
@@ -240,7 +241,8 @@ const Store = {
     });
   },
   set(key, val) {
-    if (useCloud) { try { tg.CloudStorage.setItem(key, val, () => {}); } catch (e) {} }
+    if (val.length > 4096) console.warn('CloudStorage: запись слишком большая', key, val.length);
+    if (useCloud) { try { tg.CloudStorage.setItem(key, val, (err) => { if (err) console.warn('CloudStorage error', key, err); }); } catch (e) {} }
     try { localStorage.setItem(LP + key, val); } catch (e) {}
   },
   remove(key) {
@@ -283,21 +285,34 @@ const SUGGEST = [
 ];
 const EMOJIS = ['✅','🌅','📋','📚','🧠','🏋️','🥗','💧','🤝','🕌','📖','🤲','🌙','🚶','😴','🧘','✍️','🗣️','💰','🎯','🧹','📞','📵','❤️'];
 
-/* persistence: habits -> 'habits'; daily -> 'd_YYYY_MM' {day:'id,id'}; weekly -> 'w_YYYY' {'MM-DD':'id,id'} */
+/* persistence (v2, компактно, чтобы каждая запись помещалась в лимит Telegram 4096 символов):
+   habits -> 'habits' (массив);
+   daily  -> 'd_YYYY_MM' {v:2, m:{habitId:'0101…' по дням месяца}};
+   weekly -> 'w_YYYY'    {v:2, m:{habitId:'0101…' по неделям года}} */
+const MAX_HABITS = 25;
+const yearWeek0 = y => monday(new Date(y, 0, 1, 12));
+const weekIdx = k => Math.round((pd(k) - yearWeek0(+k.slice(0, 4))) / (7 * 86400000));
 const dirty = new Set(); let saveT = null;
 const markDirty = key => { dirty.add(key); clearTimeout(saveT); saveT = setTimeout(flush, 350); };
+function packBits(map) { // {id: Set(idx)} -> {id: '0101'}
+  const m = {};
+  for (const id in map) { const arr = [...map[id]]; if (!arr.length) continue; const max = Math.max(...arr); let s = ''; for (let i = 0; i <= max; i++) s += map[id].has(i) ? '1' : '0'; m[id] = s; }
+  return m;
+}
 function flush() {
   for (const key of dirty) {
     if (key === 'habits') { Store.set('habits', JSON.stringify(S.habits)); continue; }
-    const obj = {};
+    const map = {};
+    const add = (id, i) => (map[id] || (map[id] = new Set())).add(i);
     if (key[0] === 'd') {
       const [, y, m] = key.split('_');
-      for (const k in S.d) if (k.startsWith(y + '-' + m + '-') && S.d[k].length) obj[+k.slice(8)] = S.d[k].join(',');
+      for (const k in S.d) if (k.startsWith(y + '-' + m + '-')) for (const id of S.d[k]) add(id, +k.slice(8) - 1);
     } else {
       const [, y] = key.split('_');
-      for (const k in S.w) if (k.startsWith(y + '-') && S.w[k].length) obj[k.slice(5)] = S.w[k].join(',');
+      for (const k in S.w) if (k.startsWith(y + '-')) for (const id of S.w[k]) add(id, weekIdx(k));
     }
-    if (Object.keys(obj).length) Store.set(key, JSON.stringify(obj)); else Store.remove(key);
+    const m = packBits(map);
+    if (Object.keys(m).length) Store.set(key, JSON.stringify({ v: 2, m })); else Store.remove(key);
   }
   dirty.clear();
 }
@@ -309,9 +324,20 @@ async function load() {
   for (const key in all) {
     let v; try { v = JSON.parse(all[key]); } catch (e) { continue; }
     if (key === 'habits' && Array.isArray(v)) S.habits = v;
-    else if (/^d_\d{4}_\d{2}$/.test(key)) { const [, y, m] = key.split('_'); for (const day in v) S.d[y + '-' + m + '-' + pad(day)] = String(v[day]).split(',').filter(Boolean); }
-    else if (/^w_\d{4}$/.test(key)) { const [, y] = key.split('_'); for (const md in v) S.w[y + '-' + md] = String(v[md]).split(',').filter(Boolean); }
+    else if (key === 'rem' && v && typeof v === 'object') UI.rem = v;
+    else if (/^d_\d{4}_\d{2}$/.test(key)) {
+      const [, y, m] = key.split('_');
+      if (v && v.v === 2) { for (const id in v.m) [...v.m[id]].forEach((c, i) => { if (c === '1') (S.d[y + '-' + m + '-' + pad(i + 1)] ||= []).push(id); }); }
+      else for (const day in v) S.d[y + '-' + m + '-' + pad(day)] = String(v[day]).split(',').filter(Boolean); // старый формат
+    }
+    else if (/^w_\d{4}$/.test(key)) {
+      const [, y] = key.split('_');
+      if (v && v.v === 2) { for (const id in v.m) [...v.m[id]].forEach((c, i) => { if (c === '1') (S.w[dk(addD(yearWeek0(+y), 7 * i))] ||= []).push(id); }); }
+      else for (const md in v) S.w[y + '-' + md] = String(v[md]).split(',').filter(Boolean);
+    }
   }
+  // переписываем всё в новом формате, если были данные старого
+  for (const key in all) if (/^[dw]_/.test(key) && !all[key].includes('"v":2')) markDirty(key);
   if (!all.habits) {
     const start = TK();
     S.habits = DEFAULTS.map(([name, emoji, type]) => ({ id: uid(), name, emoji, type, goal: type === 'd' ? 31 : 4, created: start }));
@@ -464,6 +490,7 @@ function renderToday() {
   ${hs.length ? `<div class="h2"><h2>Ежедневные</h2><span>нажми, чтобы отметить</span></div><div class="habits">${hs.map(h => habitCard(h, k)).join('')}</div>` : ''}
   ${ws.length ? `<div class="h2"><h2>На этой неделе</h2><span>${monday(d).getDate()} ${M_GEN[monday(d).getMonth()]} – ${wkEnd.getDate()} ${M_GEN[wkEnd.getMonth()]}</span></div><div class="habits">${ws.map(h => habitCard(h, wk)).join('')}</div>` : ''}
   ${!S.habits.length ? `<div class="card empty"><b>Пока нет привычек</b><p>Добавь первую, и цепочка начнётся сегодня.</p><button class="btn" data-act="add">${ICO.plus} Добавить привычку</button></div>` : ''}
+  ${apiOn && !(UI.rem && UI.rem.set) && S.habits.length ? `<div class="h2"></div><div class="card" style="display:flex;gap:12px;align-items:center"><div style="font-size:28px">🔔</div><div style="flex:1"><b>Напоминание после асра</b><p style="margin:2px 0 0;color:var(--muted);font-size:13px">Бот напишет, если что-то останется неотмеченным</p></div><button class="btn" style="width:auto;height:40px;padding:0 16px" data-act="rem">Включить</button></div>` : ''}
   <div class="h2"></div><div class="quote">«Самые любимые Аллаху дела — постоянные, даже если их мало»<br><b>Бухари, Муслим</b></div>`;
 }
 function monthCount(h, d) {
@@ -557,11 +584,12 @@ function renderYear() {
 }
 
 function renderHabits() {
-  const item = (h, i, arr) => `<div class="li"><span class="em">${esc(h.emoji)}</span><button class="tx" data-act="edit" data-id="${h.id}" style="text-align:left"><b>${esc(h.name)}</b><small>${h.type === 'd' ? 'каждый день · цель ' + h.goal + ' ' + plural(h.goal, 'день', 'дня', 'дней') + ' в месяц' : 'раз в неделю'}</small></button>
+  const item = (h, i, arr) => `<div class="li"><span class="em">${esc(h.emoji)}</span><button class="tx" data-act="edit" data-id="${h.id}" style="text-align:left"><b>${esc(h.name)}</b><small>${h.type === 'd' ? (h.goal >= 31 ? 'каждый день' : 'цель: ' + h.goal + ' ' + plural(h.goal, 'день', 'дня', 'дней') + ' в месяц') : 'раз в неделю'}</small></button>
     <button class="mini" data-act="mv" data-id="${h.id}" data-n="-1" ${i === 0 ? 'disabled' : ''}>${ICO.up}</button><button class="mini" data-act="mv" data-id="${h.id}" data-n="1" ${i === arr.length - 1 ? 'disabled' : ''}>${ICO.dn}</button></div>`;
   const d = daily(), w = weekly();
   view.innerHTML = `<div class="stack fade">
     <button class="btn" data-act="add">${ICO.plus} Добавить привычку</button>
+    <button class="li" data-act="rem" style="width:100%;text-align:left"><span class="em">🔔</span><span class="tx"><b>Напоминания</b><small>${apiOn ? remStatus() : 'работают в Телеграме'}</small></span>${ICO.r}</button>
     ${d.length ? `<div class="h2"><h2>Ежедневные</h2><span>${d.length}</span></div><div class="list">${d.map(item).join('')}</div>` : ''}
     ${w.length ? `<div class="h2"><h2>Еженедельные</h2><span>${w.length}</span></div><div class="list">${w.map(item).join('')}</div>` : ''}
     <p class="note">Нажми на привычку, чтобы изменить или удалить.<br>${useCloud ? 'Данные хранятся в облаке Telegram и видны на всех твоих устройствах.' : 'Сейчас данные хранятся только в этом браузере. Открой приложение в Telegram, чтобы они синхронизировались.'}</p>
@@ -575,6 +603,7 @@ const render = () => RENDER[UI.tab]();
 const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
 let draft = null;
 function openSheet(h) {
+  rdraft = null;
   draft = h ? { ...h, isNew: false } : { id: uid(), name: '', emoji: '✅', type: 'd', goal: 31, created: TK(), isNew: true };
   drawSheet();
   sheet.classList.add('on'); scrim.classList.add('on');
@@ -582,7 +611,7 @@ function openSheet(h) {
   if (draft.isNew) setTimeout(() => sheet.querySelector('#nm')?.focus(), 260);
 }
 function closeSheet() {
-  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null;
+  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null; rdraft = null;
   try { if (tg && tg.BackButton) { tg.BackButton.offClick(closeSheet); tg.BackButton.hide(); } } catch (e) {}
 }
 function drawSheet() {
@@ -601,7 +630,142 @@ scrim.addEventListener('click', closeSheet);
 
 /* ---------- Toast ---------- */
 const toastEl = document.getElementById('toast'); let toastT;
-function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 2200); }
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 2400); }
+
+/* ---------- Сервер: синхронизация и напоминания ---------- */
+const API = String(window.MS_API || '').replace(/\/$/, '');
+const apiOn = !!API && inTg;
+let TZ = 'UTC'; try { TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
+async function api(path, body) {
+  const r = await fetch(API + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ initData: tg.initData, tz: TZ, ...body }) });
+  return r.json();
+}
+let syncT = null;
+const scheduleSync = () => { if (!apiOn) return; clearTimeout(syncT); syncT = setTimeout(syncNow, 1500); };
+function syncNow() {
+  if (!apiOn) return;
+  const k = TK(), hs = daily().filter(h => active(h, k));
+  const label = h => h.emoji + ' ' + h.name;
+  api('/api/sync', { day: k, done: hs.filter(h => isDone(h, k)).length, total: hs.length, pending: hs.filter(h => !isDone(h, k)).map(label), habits: daily().map(label) }).catch(() => {});
+}
+async function loadRemSettings() {
+  if (!apiOn) return;
+  try {
+    const r = await api('/api/me', {});
+    if (r && r.ok && r.settings) { UI.rem = r.settings; UI.remInfo = { asr: r.asr, remindAt: r.remindAt }; Store.set('rem', JSON.stringify(UI.rem)); render(); }
+  } catch (e) {}
+}
+
+// Время асра (тот же алгоритм, что на сервере)
+const R2D = 180 / Math.PI, D2R = Math.PI / 180, fixA = (a, b) => { a = a - b * Math.floor(a / b); return a < 0 ? a + b : a; };
+function asrHM(lat, lon, factor) {
+  const t0 = today(), y = t0.getFullYear(), m = t0.getMonth(), d = t0.getDate();
+  const jd0 = Date.UTC(y, m, d) / 86400000 + 2440587.5; let t = 15, asrU = NaN;
+  for (let i = 0; i < 2; i++) {
+    const D = jd0 + (t - lon / 15) / 24 - 2451545.0;
+    const g = fixA(357.529 + 0.98560028 * D, 360), q = fixA(280.459 + 0.98564736 * D, 360);
+    const L = fixA(q + 1.915 * Math.sin(g * D2R) + 0.020 * Math.sin(2 * g * D2R), 360), e = 23.439 - 0.00000036 * D;
+    const RA = Math.atan2(Math.cos(e * D2R) * Math.sin(L * D2R), Math.cos(L * D2R)) * R2D / 15;
+    const eqt = q / 15 - fixA(RA, 24), decl = Math.asin(Math.sin(e * D2R) * Math.sin(L * D2R)) * R2D;
+    const ang = -Math.atan(1 / (factor + Math.tan(Math.abs(lat - decl) * D2R))) * R2D;
+    const c = (-Math.sin(ang * D2R) - Math.sin(decl * D2R) * Math.sin(lat * D2R)) / (Math.cos(decl * D2R) * Math.cos(lat * D2R));
+    if (c < -1 || c > 1) return null;
+    asrU = 12 - eqt - lon / 15 + Math.acos(c) * R2D / 15; t = asrU + lon / 15;
+  }
+  const dt = new Date(Date.UTC(y, m, d) + asrU * 3600000);
+  return pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+}
+const addMin = (hm, n) => { const [h, mi] = hm.split(':').map(Number), t = Math.min(1439, h * 60 + mi + n); return pad(Math.floor(t / 60)) + ':' + pad(t % 60); };
+const CITIES = [
+  ['Москва', 55.7558, 37.6173], ['Санкт-Петербург', 59.9343, 30.3351], ['Казань', 55.7963, 49.1088], ['Уфа', 54.7388, 55.9721],
+  ['Махачкала', 42.9849, 47.5047], ['Дербент', 42.0574, 48.2888], ['Хасавюрт', 43.2505, 46.5862], ['Грозный', 43.3178, 45.6949],
+  ['Назрань', 43.2257, 44.7646], ['Владикавказ', 43.0205, 44.6819], ['Нальчик', 43.4853, 43.6071], ['Черкесск', 44.2269, 42.0468],
+  ['Майкоп', 44.6098, 40.1006], ['Астрахань', 46.3497, 48.0408], ['Самара', 53.1959, 50.1002], ['Нижний Новгород', 56.2965, 43.9361],
+  ['Екатеринбург', 56.8389, 60.6057], ['Челябинск', 55.1644, 61.4368], ['Тюмень', 57.1530, 65.5343], ['Новосибирск', 55.0084, 82.9357],
+  ['Стамбул', 41.0082, 28.9784], ['Анкара', 39.9334, 32.8597], ['Баку', 40.4093, 49.8671], ['Алматы', 43.2220, 76.8512],
+  ['Астана', 51.1694, 71.4491], ['Ташкент', 41.2995, 69.2401], ['Бишкек', 42.8746, 74.5698], ['Душанбе', 38.5598, 68.7870],
+  ['Минск', 53.9006, 27.5590], ['Дубай', 25.2048, 55.2708]
+];
+function remStatus() {
+  const r = UI.rem;
+  if (!r || !r.set) return 'выключены';
+  if (r.mode === 'off') return 'выключены';
+  const at = UI.remInfo && UI.remInfo.remindAt;
+  return (r.mode === 'asr' ? 'после асра' + (r.city ? ' · ' + r.city : '') : 'в ' + r.rtime) + (at ? ' · сегодня в ' + at : '');
+}
+
+let rdraft = null;
+function openRem() {
+  const r = UI.rem && UI.rem.set ? UI.rem : {};
+  rdraft = { mode: r.mode || 'asr', rtime: r.rtime || '18:00', city: r.city || '', lat: r.lat ?? null, lon: r.lon ?? null, asr_factor: r.asr_factor || 1, address: r.address || 'brother' };
+  draft = null; drawRem();
+  sheet.classList.add('on'); scrim.classList.add('on');
+  try { if (tg && tg.BackButton) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); } } catch (e) {}
+}
+function drawRem() {
+  const r = rdraft, seg = (act, val, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${r[val] === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const asr = r.mode === 'asr' && r.lat != null ? asrHM(r.lat, r.lon, r.asr_factor) : null;
+  const known = CITIES.some(c => c[0] === r.city);
+  sheet.innerHTML = `<div class="grab"></div><h3>🔔 Напоминания</h3>
+    <p class="note" style="text-align:left;margin:-6px 0 16px">Если к этому времени что-то не отмечено, бот напишет тебе в Телеграм. Не больше одного сообщения в день, а если всё сделано — бот промолчит.</p>
+    <div class="field"><label>Когда напоминать</label>${seg('r-mode', 'mode', [['asr', 'После асра'], ['time', 'Своё время'], ['off', 'Выключить']])}</div>
+    ${r.mode === 'asr' ? `<div class="field"><label>Город (для времени асра)</label>
+        <select id="rc" class="inp"><option value="">— выбери город —</option>${CITIES.map(c => `<option ${c[0] === r.city ? 'selected' : ''}>${c[0]}</option>`).join('')}${r.city && !known ? `<option selected>${esc(r.city)}</option>` : ''}</select>
+        <button class="btn ghost" style="margin-top:8px;height:44px" data-act="r-geo">📍 Определить по местоположению</button></div>
+      <div class="field"><label>Расчёт асра</label>${seg('r-fac', 'asr_factor', [[1, 'Стандартный'], [2, 'Ханафитский']])}</div>
+      ${asr ? `<div class="chip" style="display:inline-block;margin:-4px 0 14px">Сегодня аср в ${asr} → напомню в ${addMin(asr, 20)}</div>` : ''}` : ''}
+    ${r.mode === 'time' ? `<div class="field"><label>Время</label><input id="rt" type="time" class="inp" value="${r.rtime}"></div>` : ''}
+    ${r.mode !== 'off' ? `<div class="field"><label>Как к тебе обращаться</label>${seg('r-adr', 'address', [['brother', 'Брат'], ['sister', 'Сестра'], ['name', 'По имени']])}</div>` : ''}
+    <button class="btn" data-act="r-save" ${apiOn ? '' : 'disabled style="opacity:.5"'}>Сохранить</button>
+    ${apiOn ? '' : `<p class="note">${inTg ? 'Сервер ещё подключается. Попробуй через несколько минут.' : 'Напоминания работают, когда приложение открыто в Телеграме через бота @maliyshagbot.'}</p>`}`;
+}
+sheet.addEventListener('change', e => {
+  if (!rdraft) return;
+  if (e.target.id === 'rc') { const c = CITIES.find(x => x[0] === e.target.value); if (c) { rdraft.city = c[0]; rdraft.lat = c[1]; rdraft.lon = c[2]; } drawRem(); }
+  if (e.target.id === 'rt') rdraft.rtime = e.target.value || '18:00';
+});
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    const viaBrowser = () => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }), reject, { timeout: 12000 }) : reject(new Error('no geo'));
+    try {
+      const LM = tg && tg.LocationManager;
+      if (inTg && LM && tg.isVersionAtLeast('8.0')) {
+        return LM.init(() => {
+          if (!LM.isLocationAvailable) return viaBrowser();
+          LM.getLocation(loc => loc ? resolve({ lat: loc.latitude, lon: loc.longitude }) : reject(new Error('denied')));
+        });
+      }
+    } catch (e) {}
+    viaBrowser();
+  });
+}
+async function handleRem(a, b) {
+  const r = rdraft;
+  if (a === 'r-mode') { r.mode = b.dataset.v; drawRem(); }
+  else if (a === 'r-fac') { r.asr_factor = +b.dataset.v; drawRem(); }
+  else if (a === 'r-adr') { r.address = b.dataset.v; drawRem(); }
+  else if (a === 'r-geo') {
+    b.textContent = 'Определяю…';
+    try { const p = await getLocation(); r.lat = Math.round(p.lat * 1e4) / 1e4; r.lon = Math.round(p.lon * 1e4) / 1e4; r.city = 'Моё местоположение'; drawRem(); }
+    catch (e) { b.textContent = '📍 Определить по местоположению'; toast('Не удалось определить. Выбери город из списка'); }
+  }
+  else if (a === 'r-save') {
+    if (!apiOn) return;
+    if (r.mode === 'asr' && r.lat == null) { toast('Выбери город'); sheet.querySelector('#rc')?.focus(); return; }
+    if (r.mode !== 'off' && tg.requestWriteAccess && !(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.allows_write_to_pm)) {
+      const ok = await new Promise(res => { try { tg.requestWriteAccess(x => res(x)); } catch (e) { res(true); } });
+      if (!ok) toast('Без разрешения бот не сможет писать тебе');
+    }
+    b.textContent = 'Сохраняю…';
+    try {
+      const res = await api('/api/settings', { mode: r.mode, rtime: r.rtime, lat: r.lat, lon: r.lon, city: r.city, asr_factor: r.asr_factor, address: r.address });
+      if (!res || !res.ok) throw new Error(res && res.error);
+      UI.rem = res.settings; UI.remInfo = { asr: res.asr, remindAt: res.remindAt }; Store.set('rem', JSON.stringify(UI.rem));
+      haptic('success'); closeSheet(); render(); syncNow();
+      toast(r.mode === 'off' ? 'Напоминания выключены' : res.remindAt ? 'Напомню сегодня в ' + res.remindAt : 'Напоминания включены');
+    } catch (e) { b.textContent = 'Сохранить'; toast('Не удалось сохранить. Проверь интернет'); }
+  }
+}
 
 /* ---------- Events ---------- */
 document.addEventListener('click', async e => {
@@ -613,12 +777,15 @@ document.addEventListener('click', async e => {
     const on = toggle(h, k); haptic(on ? 'light' : 'select');
     const now = h.type === 'd' ? dayStat(k) : null;
     if (on && now && now.done === now.total && (!was || was.done !== was.total)) { haptic('success'); toast(k === TK() ? 'Идеальный день! 🎉' : 'День закрыт полностью ✨'); }
+    if (h.type === 'd' && k === TK()) scheduleSync();
     const y = window.scrollY; render(); window.scrollTo(0, y);
   }
   else if (a === 'day') { const n = +b.dataset.n, nd = dk(addD(pd(UI.day), n)); if (nd <= TK()) { UI.day = nd; haptic('select'); render(); } }
   else if (a === 'mon') { let [y, m] = UI.ym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.ym = [y, m]; haptic('select'); render(); }
   else if (a === 'yr') { UI.year += +b.dataset.n; haptic('select'); render(); }
-  else if (a === 'add') openSheet(null);
+  else if (a === 'add') { if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
+  else if (a === 'rem') openRem();
+  else if (a.startsWith('r-')) { if (rdraft) await handleRem(a, b); }
   else if (a === 'edit') openSheet(H(b.dataset.id));
   else if (a === 'close') closeSheet();
   else if (a === 'mv') {
@@ -646,14 +813,14 @@ document.addEventListener('click', async e => {
         }
         Object.assign(old, h);
       }
-      markDirty('habits'); haptic('success'); closeSheet(); render(); toast(isNew ? 'Привычка добавлена' : 'Сохранено');
+      markDirty('habits'); haptic('success'); closeSheet(); render(); scheduleSync(); toast(isNew ? 'Привычка добавлена' : 'Сохранено');
     }
     else if (a === 'del') {
       const h = H(draft.id);
       if (!(await ask(`Удалить «${h.name}» вместе со всеми отметками?`))) return;
       for (const st of [S.d, S.w]) for (const k in st) { const ix = st[k].indexOf(h.id); if (ix >= 0) { st[k].splice(ix, 1); markDirty(st === S.d ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4)); } }
       S.habits = S.habits.filter(x => x.id !== h.id);
-      markDirty('habits'); closeSheet(); render(); toast('Привычка удалена');
+      markDirty('habits'); closeSheet(); render(); scheduleSync(); toast('Привычка удалена');
     }
   }
 });
@@ -670,7 +837,8 @@ let rT; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTime
 const syncEl = document.getElementById('sync');
 syncEl.innerHTML = useCloud ? '<i></i>облако Telegram' : '<i></i>на этом устройстве';
 syncEl.classList.toggle('local', !useCloud);
-load().then(() => { flush(); render(); });
+load().then(() => { flush(); render(); syncNow(); loadRemSettings(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (UI.tab === 'today') UI.day = TK(); render(); scheduleSync(); } });
 window.__ms = { S, UI, render, monthStats, dayStat, streak, toggle, TK };
 })();
 </script>

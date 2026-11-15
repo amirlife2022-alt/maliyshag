@@ -1,0 +1,125 @@
+name: Deploy server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      WORKER_NAME: maliyshag-api
+      DB_NAME: maliyshag-db
+      APP_URL: https://amirlife2022-alt.github.io/maliyshag/
+      WRANGLER: npx --yes wrangler@4.162.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check secrets
+        run: |
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID BOT_TOKEN; do
+            if [ -z "${!v}" ]; then echo "::error::Секрет $v не задан"; exit 1; fi
+          done
+          echo "Все секреты на месте"
+
+      - name: Ensure workers.dev subdomain
+        run: |
+          API=https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain
+          SUB=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" $API | jq -r '.result.subdomain // empty')
+          if [ -z "$SUB" ]; then
+            for cand in maliyshag maliyshag-app "maliyshag-$RANDOM"; do
+              R=$(curl -s -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" --data "{\"subdomain\":\"$cand\"}" $API)
+              if [ "$(echo "$R" | jq -r '.success')" = "true" ]; then SUB=$cand; break; fi
+              echo "subdomain $cand: $(echo "$R" | jq -c '.errors')"
+            done
+          fi
+          if [ -z "$SUB" ]; then echo "::error::Не удалось получить поддомен workers.dev"; exit 1; fi
+          echo "SUBDOMAIN=$SUB" >> $GITHUB_ENV
+          echo "workers.dev subdomain: $SUB"
+
+      - name: Ensure D1 database
+        run: |
+          ID=$($WRANGLER d1 list --json | jq -r ".[] | select(.name==\"$DB_NAME\") | .uuid")
+          if [ -z "$ID" ]; then
+            $WRANGLER d1 create "$DB_NAME"
+            ID=$($WRANGLER d1 list --json | jq -r ".[] | select(.name==\"$DB_NAME\") | .uuid")
+          fi
+          if [ -z "$ID" ]; then echo "::error::Не удалось создать базу D1"; exit 1; fi
+          echo "DB_ID=$ID" >> $GITHUB_ENV
+          echo "D1 id: $ID"
+
+      - name: Write wrangler.toml
+        run: |
+          cat > wrangler.toml <<EOF
+          name = "$WORKER_NAME"
+          main = "server/worker.js"
+          compatibility_date = "2025-06-01"
+          workers_dev = true
+
+          [triggers]
+          crons = ["*/15 * * * *"]
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "$DB_NAME"
+          database_id = "$DB_ID"
+
+          [vars]
+          APP_URL = "$APP_URL"
+          EOF
+          cat wrangler.toml
+
+      - name: Apply database schema
+        run: $WRANGLER d1 execute "$DB_NAME" --remote --file server/schema.sql --yes
+
+      - name: Deploy worker
+        run: $WRANGLER deploy
+
+      - name: Set BOT_TOKEN secret
+        run: echo -n "$BOT_TOKEN" | $WRANGLER secret put BOT_TOKEN
+
+      - name: Connect Telegram webhook
+        run: |
+          WORKER_URL="https://$WORKER_NAME.$SUBDOMAIN.workers.dev"
+          SECRET=$(node -e "const c=require('crypto');console.log(c.createHash('sha256').update('maliyshag:'+process.env.BOT_TOKEN).digest('hex').slice(0,48))")
+          # ждём, пока новый адрес начнёт отвечать
+          for i in $(seq 1 20); do
+            if curl -sf "$WORKER_URL/health" >/dev/null; then echo "worker отвечает"; break; fi
+            sleep 6
+          done
+          curl -s "$WORKER_URL/health"; echo
+          R=$(curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
+            -H "Content-Type: application/json" \
+            --data "{\"url\":\"$WORKER_URL/tg\",\"secret_token\":\"$SECRET\",\"allowed_updates\":[\"message\",\"my_chat_member\"],\"drop_pending_updates\":false}")
+          echo "setWebhook: $R"
+          [ "$(echo "$R" | jq -r '.ok')" = "true" ] || { echo "::error::setWebhook не удался"; exit 1; }
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/setMyCommands" -H "Content-Type: application/json" \
+            --data '{"commands":[{"command":"start","description":"Открыть трекер"},{"command":"on","description":"Включить напоминания"},{"command":"stop","description":"Выключить напоминания"}]}'
+          echo
+          echo "WORKER_URL=$WORKER_URL" >> $GITHUB_ENV
+
+      - name: Publish API address for the app
+        run: |
+          echo "window.MS_API = \"$WORKER_URL\";" > config.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config.js
+          if git diff --cached --quiet; then echo "config.js без изменений"; else git commit -m "Адрес сервера для приложения" && git push; fi
