@@ -1,4 +1,4 @@
-# Малый шаг — трекер привычек
+# Qawiyy — трекер привычек
 
 Telegram Mini App: https://t.me/maliyshagbot
 

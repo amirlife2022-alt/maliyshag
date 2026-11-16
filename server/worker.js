@@ -1,4 +1,4 @@
-// Малый шаг — серверная часть (Cloudflare Worker + D1)
+// Qawiyy — серверная часть (Cloudflare Worker + D1)
 // Маршруты:
 //   POST /tg            — вебхук Telegram (команды бота)
 //   POST /api/sync      — приложение сообщает, что сделано сегодня
@@ -129,7 +129,7 @@ async function tgCall(env, method, body) {
     return { status: 0, data: null };
   }
 }
-const appButton = (env, text = 'Открыть «Малый шаг»') => ({ inline_keyboard: [[{ text, web_app: { url: env.APP_URL } }]] });
+const appButton = (env, text = 'Открыть Qawiyy') => ({ inline_keyboard: [[{ text, web_app: { url: env.APP_URL } }]] });
 const escHtml = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 async function onTelegram(req, env) {
@@ -155,7 +155,7 @@ async function onTelegram(req, env) {
 
   let reply;
   if (cmd === '/start') {
-    reply = { text: `Ас-саляму алейкум, ${escHtml(from.first_name || 'друг')}! 🤍\n\n<b>Малый шаг</b> — трекер привычек. Отмечай каждый день то, что сделал, и не разрывай цепочку.\n\nВ приложении можно включить напоминание после асра: бот напишет, если что-то осталось несделанным.`, reply_markup: appButton(env) };
+    reply = { text: `Ас-саляму алейкум, ${escHtml(from.first_name || 'друг')}! 🤍\n\n<b>Qawiyy</b> — трекер привычек. Сила в малых шагах: отмечай каждый день то, что сделал, и не разрывай цепочку.\n\nВ приложении можно включить напоминание после асра: бот напишет, если что-то осталось несделанным.`, reply_markup: appButton(env) };
   } else if (cmd === '/stop') {
     await env.DB.prepare("UPDATE users SET mode='off' WHERE id=?").bind(from.id).run();
     reply = { text: 'Напоминания выключены. Включить снова: /on или в настройках приложения.' };
@@ -178,7 +178,7 @@ async function onTelegram(req, env) {
       const rem = await env.DB.prepare("SELECT COUNT(*) n FROM users WHERE mode!='off' AND blocked=0 AND tz IS NOT NULL").first();
       const blk = await env.DB.prepare('SELECT COUNT(*) n FROM users WHERE blocked=1').first();
       const fresh = await q('SELECT COUNT(*) n FROM users WHERE created_at > ? - 7*86400000');
-      reply = { text: `📊 <b>Малый шаг — статистика</b>\n\nВсего пользователей: <b>${all.n}</b>\nНовых за 7 дней: ${fresh.n}\n\nОткрывали приложение:\n• за сутки: ${d1.n}\n• за 7 дней: ${d7.n}\n• за 30 дней: ${d30.n}\n\nНапоминания включены: ${rem.n}\nЗаблокировали бота: ${blk.n}` };
+      reply = { text: `📊 <b>Qawiyy — статистика</b>\n\nВсего пользователей: <b>${all.n}</b>\nНовых за 7 дней: ${fresh.n}\n\nОткрывали приложение:\n• за сутки: ${d1.n}\n• за 7 дней: ${d7.n}\n• за 30 дней: ${d30.n}\n\nНапоминания включены: ${rem.n}\nЗаблокировали бота: ${blk.n}` };
     }
   } else {
     reply = { text: 'Нажми кнопку ниже, чтобы открыть трекер.\n\nКоманды: /on — включить напоминания, /stop — выключить.', reply_markup: appButton(env) };
@@ -273,7 +273,7 @@ export function composeMessage(u, kind, row) {
     `${A}, мы скучаем по твоим отметкам 🌿\n\nНе нужно наверстывать всё. Один шаг сегодня уже меняет день.`
   ]);
   if (kind === 'absent') return pick([
-    `Ас-саляму алейкум, ${a}! 🤍\n\nСегодня в «Малом шаге» ещё нет ни одной отметки. День не закончился: загляни на минуту и отметь, что уже сделано.`,
+    `Ас-саляму алейкум, ${a}! 🤍\n\nСегодня в Qawiyy ещё нет ни одной отметки. День не закончился: загляни на минуту и отметь, что уже сделано.`,
     `${A}, как проходит день? 🌿\n\nОткрой трекер и отметь, что получилось. Даже один малый шаг считается.`,
     `${A}, аср уже наступил, а цепочка ждёт сегодняшней отметки. Пара минут, и день засчитан 🔥`
   ]);
