@@ -923,6 +923,7 @@ function drawRem() {
       ${asr ? `<div class="info">${ico('bell', 'width:16px;height:16px')}Сегодня аср в ${asr} → напомню в ${addMin(asr, 20)}</div>` : ''}` : ''}
     ${r.mode === 'time' ? `<div class="field"><label for="rt">Время</label><input id="rt" type="time" class="inp" value="${r.rtime}"></div>` : ''}
     ${r.mode !== 'off' ? `<div class="field"><span class="flabel">Как к тебе обращаться</span>${seg('r-adr', 'address', [['brother', 'Брат'], ['sister', 'Сестра'], ['name', 'По имени']])}</div>` : ''}
+    ${apiOn && r.mode !== 'off' ? `<button class="btn ghost" style="margin:-2px 0 16px;height:48px" data-act="r-sound">${ico('bell', 'width:18px;height:18px')} Звук как у будильника</button>` : ''}
     <button class="btn" data-act="r-save" ${apiOn ? '' : 'disabled'}>Сохранить</button>
     ${apiOn ? '' : `<p class="note">${inTg ? 'Сервер ещё подключается. Попробуй через несколько минут.' : 'Напоминания работают, когда приложение открыто в Телеграме через бота @maliyshagbot.'}</p>`}`;
 }
@@ -955,6 +956,10 @@ async function handleRem(a, b) {
     b.textContent = 'Определяю…';
     try { const p = await getLocation(); r.lat = Math.round(p.lat * 1e4) / 1e4; r.lon = Math.round(p.lon * 1e4) / 1e4; r.city = 'Моё местоположение'; drawRem(); }
     catch (e) { drawRem(); toast('Не удалось определить. Выбери город'); }
+  }
+  else if (a === 'r-sound') {
+    if (tg.requestWriteAccess && !(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.allows_write_to_pm)) await new Promise(res => { try { tg.requestWriteAccess(x => res(x)); } catch (e) { res(true); } });
+    try { const res = await api('/api/sound', {}); toast(res && res.ok ? 'Бот прислал звук — открой чат' : 'Сначала нажми Start в чате с ботом'); } catch (e) { toast('Не удалось. Проверь интернет'); }
   }
   else if (a === 'r-save') {
     if (!apiOn) return;

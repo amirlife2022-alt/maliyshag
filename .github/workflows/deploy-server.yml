@@ -112,7 +112,7 @@ jobs:
           echo "setWebhook: $R"
           [ "$(echo "$R" | jq -r '.ok')" = "true" ] || { echo "::error::setWebhook не удался"; exit 1; }
           curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/setMyCommands" -H "Content-Type: application/json" \
-            --data '{"commands":[{"command":"start","description":"Открыть трекер"},{"command":"on","description":"Включить напоминания"},{"command":"stop","description":"Выключить напоминания"}]}'
+            --data '{"commands":[{"command":"start","description":"Открыть трекер"},{"command":"on","description":"Включить напоминания"},{"command":"sound","description":"Звук напоминаний как будильник"},{"command":"stop","description":"Выключить напоминания"}]}'
           echo
           echo "WORKER_URL=$WORKER_URL" >> $GITHUB_ENV
 

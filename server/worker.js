@@ -130,6 +130,11 @@ async function tgCall(env, method, body) {
   }
 }
 const appButton = (env, text = 'Открыть Qawiyy') => ({ inline_keyboard: [[{ text, web_app: { url: env.APP_URL } }]] });
+// Звук напоминания: человек сохраняет его в Телеграме как звук уведомлений для чата с ботом
+const SOUND_CAPTION = '🔔 <b>Звук напоминаний Qawiyy</b>\n\nЧтобы напоминания звучали так, как будильник, один раз сделай:\n\n1. Зажми это аудио (на компьютере — правая кнопка мыши) → <b>«Сохранить для уведомлений»</b>.\n2. Нажми на имя бота вверху чата → <b>«Уведомления»</b> → <b>«Звук»</b> → выбери этот звук.\n\nГотово: напоминания от бота будут звучать именно так, остальные чаты — как раньше.';
+async function sendSound(env, chatId) {
+  return tgCall(env, 'sendAudio', { chat_id: chatId, audio: env.APP_URL + 'sounds/qawiyy-alarm.mp3', title: 'Напоминание Qawiyy', performer: 'Qawiyy', caption: SOUND_CAPTION, parse_mode: 'HTML' });
+}
 const escHtml = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 async function onTelegram(req, env) {
@@ -156,6 +161,9 @@ async function onTelegram(req, env) {
   let reply;
   if (cmd === '/start') {
     reply = { text: `Ас-саляму алейкум, ${escHtml(from.first_name || 'друг')}! 🤍\n\n<b>Qawiyy</b> — трекер привычек. Сила в малых шагах: отмечай каждый день то, что сделал, и не разрывай цепочку.\n\nВ приложении можно включить напоминание после асра: бот напишет, если что-то осталось несделанным.`, reply_markup: appButton(env) };
+  } else if (cmd === '/sound' || cmd === '/zvuk') {
+    await sendSound(env, from.id);
+    return json({ ok: true });
   } else if (cmd === '/stop') {
     await env.DB.prepare("UPDATE users SET mode='off' WHERE id=?").bind(from.id).run();
     reply = { text: 'Напоминания выключены. Включить снова: /on или в настройках приложения.' };
@@ -231,6 +239,7 @@ async function onApi(path, req, env) {
   }
 
   if (path === '/api/me') return json({ ok: true, ...(await settingsOut(env, user.id, now)) });
+  if (path === '/api/sound') { const r = await sendSound(env, user.id); return json({ ok: r.status === 200, error: r.status === 403 ? 'blocked' : undefined }); }
   return json({ ok: false, error: 'not_found' }, 404);
 }
 
