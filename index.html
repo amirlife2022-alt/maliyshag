@@ -131,7 +131,11 @@ button.card:active{transform:scale(.985)}
 .chart text{fill:var(--dim);font-size:10px;font-weight:600;font-family:Manrope,sans-serif}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin-top:14px}
 .cal .h{text-align:center;font-size:11px;font-weight:700;color:var(--mut)}
-.cal button,.cal .e{height:38px;border-radius:12px;display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.cal button,.cal .e{position:relative;height:38px;border-radius:12px;display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.cal .pdot{position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#F3F5EE;box-shadow:0 0 0 1px rgba(10,11,8,.5)}
+.tab span{white-space:nowrap}
+@media(max-width:380px){.tab{font-size:10px}.tab svg{width:19px;height:19px}}
+.sugg button.on{background:var(--a);color:var(--ink);border-color:var(--a)}
 .cal button.fut{cursor:default}
 .goals{display:flex;flex-direction:column;gap:14px;margin-top:16px;padding:0 4px}
 .goal .l{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;font-weight:700}
@@ -185,7 +189,7 @@ button.card:active{transform:scale(.985)}
 .note{color:var(--mut);font-size:12.5px;text-align:center;margin-top:18px;line-height:1.45}
 
 /* nav */
-.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;border-radius:28px;background:rgba(24,26,19,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 40px rgba(0,0,0,.5);width:min(460px,calc(100% - 32px))}
+.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;border-radius:28px;background:rgba(24,26,19,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 40px rgba(0,0,0,.5);width:min(520px,calc(100% - 24px))}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:20px;color:var(--mut);font-size:11px;font-weight:700;transition:background .2s,color .2s}
 .tab svg{width:21px;height:21px}
 .tab.on{background:var(--a);color:var(--ink)}
@@ -312,6 +316,7 @@ select.inp option{background:#16180F}
 
 <nav class="tabs" id="tabs" aria-label="Разделы">
   <button class="tab on" data-tab="today"><svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zM8 12l3 3 5-6"/></svg><span>Сегодня</span></button>
+  <button class="tab" data-tab="plan"><svg class="i" viewBox="0 0 24 24"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1zM8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M8.5 13l2.5 2.5 4.5-5"/></svg><span>План</span></button>
   <button class="tab" data-tab="month"><svg class="i" viewBox="0 0 24 24"><path d="M3 5h18v16H3zM3 10h18M8 3v4M16 3v4"/></svg><span>Месяц</span></button>
   <button class="tab" data-tab="year"><svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span>Год</span></button>
   <button class="tab" data-tab="habits"><svg class="i" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Привычки</span></button>
@@ -444,7 +449,7 @@ const hIcon = h => IC[h.icon] ? h.icon : guessIcon(h);
 
 /* ---------- State ---------- */
 const S = { habits: [], d: {}, w: {} };   // d: {'YYYY-MM-DD': [ids]}, w: {'YYYY-MM-DD'(monday): [ids]}
-const UI = { tab: 'today', day: TK(), ym: [today().getFullYear(), today().getMonth()], year: today().getFullYear(), filter: 'all', accent: '#D4F36B', intro: false };
+const UI = { tab: 'today', day: TK(), ym: [today().getFullYear(), today().getMonth()], year: today().getFullYear(), filter: 'all', accent: '#D4F36B', intro: false, cur: '₽', pym: [today().getFullYear(), today().getMonth()] };
 const uid = () => Math.random().toString(36).slice(2, 7);
 const ACCENTS = ['#D4F36B', '#7CC4FF', '#6EE7B7', '#F2C46D'];
 
@@ -478,7 +483,15 @@ function packBits(map) { // {id: Set(idx)} -> {id: '0101'}
 function flush() {
   for (const key of dirty) {
     if (key === 'habits') { Store.set('habits', JSON.stringify(S.habits)); continue; }
-    if (key === 'ui') { Store.set('ui', JSON.stringify({ accent: UI.accent, intro: UI.intro })); continue; }
+    if (key === 'ui') { Store.set('ui', JSON.stringify({ accent: UI.accent, intro: UI.intro, cur: UI.cur })); continue; }
+    if (key === 'pls') { Store.set('pls', JSON.stringify(P.series)); continue; }
+    if (key.startsWith('pl_')) { // план месяца, по частям до ~3800 символов
+      const ym = key.slice(3).replace('_', '-'), list = P.items[ym] || [], chunks = []; let cur = [];
+      for (const it of list) { cur.push(it); if (JSON.stringify(cur).length > 3800) { cur.pop(); chunks.push(cur); cur = [it]; } }
+      if (cur.length) chunks.push(cur);
+      for (let i = 0; i < 6; i++) { if (chunks[i]) Store.set(key + '_' + i, JSON.stringify(chunks[i])); else Store.remove(key + '_' + i); }
+      continue;
+    }
     const map = {};
     const add = (id, i) => (map[id] || (map[id] = new Set())).add(i);
     if (key[0] === 'd') {
@@ -502,7 +515,9 @@ async function load() {
     let v; try { v = JSON.parse(all[key]); } catch (e) { continue; }
     if (key === 'habits' && Array.isArray(v)) S.habits = v;
     else if (key === 'rem' && v && typeof v === 'object') UI.rem = v;
-    else if (key === 'ui' && v && typeof v === 'object') { if (ACCENTS.includes(v.accent)) UI.accent = v.accent; UI.intro = !!v.intro; }
+    else if (key === 'ui' && v && typeof v === 'object') { if (ACCENTS.includes(v.accent)) UI.accent = v.accent; UI.intro = !!v.intro; if (CURS.includes(v.cur)) UI.cur = v.cur; }
+    else if (key === 'pls' && Array.isArray(v)) P.series = v;
+    else if (/^pl_\d{4}_\d{2}_\d$/.test(key) && Array.isArray(v)) { const ym = key.slice(3, 10).replace('_', '-'); (P.parts ||= {})[ym] = P.parts[ym] || []; P.parts[ym][+key.slice(11)] = v; }
     else if (/^d_\d{4}_\d{2}$/.test(key)) {
       const [, y, m] = key.split('_');
       if (v && v.v === 2) { for (const id in v.m) [...v.m[id]].forEach((c, i) => { if (c === '1') (S.d[y + '-' + m + '-' + pad(i + 1)] ||= []).push(id); }); }
@@ -514,6 +529,8 @@ async function load() {
       else for (const md in v) S.w[y + '-' + md] = String(v[md]).split(',').filter(Boolean);
     }
   }
+  for (const ym in (P.parts || {})) P.items[ym] = P.parts[ym].filter(Boolean).flat();
+  delete P.parts;
   for (const key in all) if (/^[dw]_/.test(key) && !all[key].includes('"v":2')) markDirty(key);
   if (!all.habits) {
     const start = TK();
@@ -678,6 +695,7 @@ function renderToday() {
       <div style="flex:1;min-width:0"><h3 class="disp">${h1}</h3><p>${h2}</p></div></div>
       <div class="hpills"><span class="pill">${ico('flame', 'color:var(--fire)')}серия ${fire}</span><span class="pill">${ico('star', 'color:var(--a)')}идеальных дней: ${ms.perfect}</span></div>
     </div>
+    ${k === TK() ? todayPlanBlock() : ''}
     ${hs.length ? `<div class="sec"><div class="sh"><h2>Ежедневные</h2><span>нажми, чтобы отметить</span></div><div class="list two">${hs.map(h => card(h, k)).join('')}</div></div>` : ''}
     ${ws.length ? `<div class="sec"><div class="sh"><h2>На этой неделе</h2><span>${range}</span></div><div class="list two">${ws.map(h => card(h, dk(mon))).join('')}</div></div>` : ''}
     ${!S.habits.length ? `<div class="glass empty"><b>Пока нет привычек</b><p>Добавь первую, и цепочка начнётся сегодня.</p><button class="btn" data-act="add">Добавить привычку</button></div>` : ''}
@@ -707,13 +725,13 @@ function renderMonth() {
   const markIdx = isCur ? today().getDate() - 1 : null;
   // calendar
   let cal = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(w => `<div class="h">${w}</div>`).join('');
-  const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+  const lead = (new Date(y, m, 1).getDay() + 6) % 7, pdays = planDays(ymKey(y, m));
   for (let i = 0; i < lead; i++) cal += '<div class="e"></div>';
   for (let i = 1; i <= n; i++) {
     const k = y + '-' + pad(m + 1) + '-' + pad(i), fut = k > tk, s = !fut && dayStat(k), v = s ? s.pct : 0;
     const bg = v > 0 ? heat(v) : fut ? 'rgba(255,255,255,.025)' : 'rgba(255,255,255,.06)';
     const col = v >= .5 ? '#0A0B08' : fut ? '#5F6356' : '#C9CCBF';
-    cal += `<button ${fut ? 'disabled class="fut"' : ''} data-act="open" data-k="${k}" style="background:${bg};color:${col};${k === tk ? 'box-shadow:inset 0 0 0 2px var(--a)' : ''}" aria-label="${i} ${M_GEN[m]}${s ? ': ' + Math.round(v * 100) + '%' : ''}">${i}</button>`;
+    cal += `<button ${fut ? 'disabled class="fut"' : ''} data-act="open" data-k="${k}" style="background:${bg};color:${col};${k === tk ? 'box-shadow:inset 0 0 0 2px var(--a)' : ''}" aria-label="${i} ${M_GEN[m]}${s ? ': ' + Math.round(v * 100) + '%' : ''}${pdays.has(i) ? ', есть план' : ''}">${i}${pdays.has(i) ? '<i class="pdot"></i>' : ''}</button>`;
   }
   const goals = daily().map(h => {
     const c = monthCount(h, y, m), goal = Math.min(h.goal, n), p = goal ? Math.min(1, c / goal) : 0;
@@ -803,7 +821,7 @@ function renderHabits() {
   </div>`;
 }
 
-const RENDER = { today: renderToday, month: renderMonth, year: renderYear, habits: renderHabits };
+const RENDER = { today: renderToday, plan: renderPlan, month: renderMonth, year: renderYear, habits: renderHabits };
 const render = () => RENDER[UI.tab]();
 function applyAccent() { document.documentElement.style.setProperty('--a', UI.accent); }
 function setTab(t) {
@@ -852,14 +870,14 @@ function showSheet() {
   try { if (tg && tg.BackButton) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); } } catch (e) {}
 }
 function openSheet(h) {
-  rdraft = null;
+  rdraft = null; pdraft = null;
   draft = h ? { ...h, icon: hIcon(h), isNew: false } : { id: uid(), name: '', icon: 'check', type: 'd', goal: 31, created: TK(), isNew: true };
   UI.coll = (COLLECTIONS.find(c => c.icons && c.icons.includes(draft.icon)) || COLLECTIONS[0]).id;
   drawSheet(); showSheet();
   if (draft.isNew) setTimeout(() => sheet.querySelector('#nm')?.focus(), 280);
 }
 function closeSheet() {
-  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null; rdraft = null;
+  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null; rdraft = null; pdraft = null;
   try { if (tg && tg.BackButton) { tg.BackButton.offClick(closeSheet); tg.BackButton.hide(); } } catch (e) {}
 }
 function drawSheet() {
@@ -945,7 +963,7 @@ function remStatus() {
 function openRem() {
   const r = UI.rem && UI.rem.set ? UI.rem : {};
   rdraft = { mode: r.mode || 'asr', rtime: r.rtime || '18:00', city: r.city || '', lat: r.lat ?? null, lon: r.lon ?? null, asr_factor: r.asr_factor || 1, address: r.address || 'brother' };
-  draft = null; drawRem(); showSheet();
+  draft = null; pdraft = null; drawRem(); showSheet();
 }
 function drawRem() {
   const r = rdraft, seg = (act, val, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${r[val] === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
@@ -1017,6 +1035,208 @@ async function handleRem(a, b) {
   }
 }
 
+/* ---------- План: встречи, оплаты, дела, цели месяца ---------- */
+// P.items: {'YYYY-MM': [ {id, k:'m'|'p'|'t'|'g', t, d, tm, a, n, r:{db, at}|null, sid, done} ]}
+// P.series: регулярные пункты (каждый месяц) [{sid, k, t, d, tm, a, n, r, from, skip:[]}]
+const P = { items: {}, series: [] };
+const CURS = ['₽', '$', '€', '₺', '₸', 'сум'];
+const PLAN_MAX = 40;
+const KIND = { m: ['Встреча', 'calendar'], p: ['Оплата', 'coin'], t: ['Дело', 'list'], g: ['Цель месяца', 'target'] };
+const ymKey = (y, m) => y + '-' + pad(m + 1);
+const curYM = () => ymKey(today().getFullYear(), today().getMonth());
+const fmtMoney = v => (Math.round(v * 100) / 100).toLocaleString('ru-RU').replace(/\s/g, ' ') + ' ' + UI.cur;
+const planList = ym => P.items[ym] || (P.items[ym] = []);
+const planDate = (ym, it) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, Math.min(it.d, dim(y, m - 1)), 12); };
+function markPlan(ym) { markDirty('pl_' + ym.replace('-', '_')); }
+function materialize(ym) {
+  if (ym < curYM()) return;
+  const list = planList(ym); let added = false;
+  for (const s of P.series) {
+    if (s.from > ym || (s.skip || []).includes(ym) || list.some(it => it.sid === s.sid)) continue;
+    if (list.length >= PLAN_MAX) break;
+    list.push({ id: uid(), sid: s.sid, k: s.k, t: s.t, d: s.d, tm: s.tm, a: s.a, n: s.n, r: s.r ? { ...s.r } : null, done: 0 });
+    added = true;
+  }
+  if (added) markPlan(ym);
+}
+function remindAt(ym, it) {
+  if (!it.r || it.k === 'g') return null;
+  const dt = planDate(ym, it), [hh, mm] = (it.r.at || '09:00').split(':').map(Number);
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - (it.r.db || 0), hh, mm, 0, 0);
+}
+const whenText = (ym, it) => { const dt = planDate(ym, it); return `${dt.getDate()} ${M_GEN[dt.getMonth()]}${it.tm ? ', ' + it.tm : ''}`; };
+const remText = (ym, it) => { const r = remindAt(ym, it); if (!r || r.getTime() < Date.now() - 60000) return ''; const k = dk(r); const day = k === TK() ? 'сегодня' : k === dk(addD(today(), 1)) ? 'завтра' : `${r.getDate()} ${M_SH[r.getMonth()]}`; return `${day} в ${pad(r.getHours())}:${pad(r.getMinutes())}`; };
+function dayLabelPlan(dt) {
+  const k = dk(dt), t = TK();
+  if (k === t) return 'Сегодня'; if (k === dk(addD(today(), 1))) return 'Завтра'; if (k === dk(addD(today(), -1))) return 'Вчера';
+  return `${cap(DOW_FULL[dt.getDay()])}, ${dt.getDate()} ${M_GEN[dt.getMonth()]}`;
+}
+function planCard(ym, it) {
+  const dt = planDate(ym, it), over = !it.done && it.k !== 'g' && dk(dt) < TK();
+  const bits = [];
+  if (it.tm) bits.push(it.tm);
+  if (it.k === 'p' && it.a) bits.push(fmtMoney(it.a));
+  if (it.sid) bits.push('каждый месяц');
+  const rt = !it.done ? remText(ym, it) : '';
+  return `<div class="card ${it.done ? 'on' : ''} pcard"><button class="ib" data-act="pedit" data-ym="${ym}" data-id="${it.id}" aria-label="Изменить: ${esc(it.t)}">${ico(KIND[it.k][1])}</button>
+    <button class="tx" data-act="pedit" data-ym="${ym}" data-id="${it.id}"><b>${esc(it.t)}</b><small style="display:block;color:${over ? 'var(--fire)' : 'var(--mut)'}">${over ? 'просрочено · ' : ''}${KIND[it.k][0].toLowerCase()}${bits.length ? ' · ' + bits.join(' · ') : ''}</small>${rt ? `<small style="color:var(--a);font-weight:700">${ico('bell', 'width:13px;height:13px;color:var(--a)')}<span>напомню ${rt}</span></small>` : ''}</button>
+    <button class="chk" data-act="pdone" data-ym="${ym}" data-id="${it.id}" aria-pressed="${!!it.done}" aria-label="${it.done ? 'Снять отметку' : it.k === 'p' ? 'Отметить оплату' : 'Отметить'}: ${esc(it.t)}">${ico('ok')}</button></div>`;
+}
+function renderPlan() {
+  setGlow('left:-120px;top:-120px');
+  const [y, m] = UI.pym, ym = ymKey(y, m), isCur = ym === curYM();
+  materialize(ym);
+  const list = planList(ym).slice();
+  const pays = list.filter(i => i.k === 'p'), total = pays.reduce((s, i) => s + (+i.a || 0), 0), paid = pays.filter(i => i.done).reduce((s, i) => s + (+i.a || 0), 0);
+  const goals = list.filter(i => i.k === 'g'), rest = list.filter(i => i.k !== 'g').sort((a, b) => a.d - b.d || (a.tm || '99').localeCompare(b.tm || '99'));
+  const todo = rest.filter(i => !i.done), done = rest.filter(i => i.done);
+  const groups = []; for (const it of todo) { const dt = planDate(ym, it), lbl = dayLabelPlan(dt); const g = groups[groups.length - 1]; if (g && g.lbl === lbl) g.items.push(it); else groups.push({ lbl, items: [it] }); }
+  const meet = rest.filter(i => i.k === 'm').length, tasks = rest.filter(i => i.k === 't');
+  view.innerHTML = `<div class="fade">
+    <div class="nav3"><button class="circ" data-act="pmon" data-n="-1" aria-label="Предыдущий месяц">${ico('left')}</button>
+      <div><h1 class="disp">${cap(M_NOM[m])} ${y}</h1><small>план на месяц</small></div>
+      <button class="circ" data-act="pmon" data-n="1" aria-label="Следующий месяц">${ico('right')}</button></div>
+    <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <div class="kpi acc" style="grid-column:1 / -1"><small>ОПЛАТЫ ЗА МЕСЯЦ</small><b class="disp" style="font-size:28px">${fmtMoney(paid)}</b><em>из ${fmtMoney(total)} · ${pays.filter(i => i.done).length} из ${pays.length} оплачено</em>
+        <div class="bar" style="background:rgba(10,11,8,.15);margin-top:12px"><i style="background:var(--ink);width:${total ? (paid / total * 100).toFixed(1) : 0}%"></i></div></div>
+      <div class="kpi"><small>ВСТРЕЧИ</small><b class="disp">${meet}</b><em>в этом месяце</em></div>
+      <div class="kpi"><small>ДЕЛА И ЦЕЛИ</small><b class="disp">${tasks.filter(i => i.done).length + goals.filter(i => i.done).length}/${tasks.length + goals.length}</b><em>выполнено</em></div>
+    </div>
+    <button class="addbtn" data-act="padd"><span>ДОБАВИТЬ В ПЛАН</span><span>${ico('plus', 'stroke-width:2.2')}</span></button>
+    ${goals.length ? `<div class="sec"><div class="sh"><h2>Цели месяца</h2><span>${goals.filter(i => i.done).length} из ${goals.length}</span></div><div class="list">${goals.map(i => planCard(ym, i)).join('')}</div></div>` : ''}
+    ${groups.map(g => `<div class="sec"><div class="sh"><h2>${g.lbl}</h2></div><div class="list">${g.items.map(i => planCard(ym, i)).join('')}</div></div>`).join('')}
+    ${!list.length ? `<div class="glass empty"><b>${isCur ? 'План на месяц пуст' : 'В этом месяце пока ничего'}</b><p>Добавь встречи, оплаты и дела. Для каждого можно поставить своё напоминание — бот напишет точно в это время.</p></div>` : ''}
+    ${done.length ? `<div class="sec"><div class="sh"><h2>Выполнено</h2><span>${done.length}</span></div><div class="list">${done.map(i => planCard(ym, i)).join('')}</div></div>` : ''}
+    <div class="sec"><div class="sh"><h2>Валюта</h2></div><div class="filters" style="margin-top:0">${CURS.map(c => `<button class="pill ${c === UI.cur ? 'on' : ''}" data-act="pcur" data-c="${c}">${c}</button>`).join('')}</div></div>
+    ${!apiOn ? `<p class="note">Напоминания по плану приходят от бота, когда приложение открыто в Телеграме.</p>` : ''}
+  </div>`;
+}
+function todayPlanBlock() {
+  const ym = curYM(), t = today(); materialize(ym);
+  const items = planList(ym).filter(i => i.k !== 'g' && planDate(ym, i).getDate() === t.getDate()).sort((a, b) => (a.tm || '99').localeCompare(b.tm || '99'));
+  if (!items.length) return '';
+  return `<div class="sec"><div class="sh"><h2>Сегодня по плану</h2><span>${items.filter(i => i.done).length} из ${items.length}</span></div><div class="list two">${items.map(i => planCard(ym, i)).join('')}</div></div>`;
+}
+const planDays = ym => { const s = new Set(); for (const i of (P.items[ym] || [])) if (i.k !== 'g') s.add(planDate(ym, i).getDate()); return s; };
+
+/* шторка пункта плана */
+let pdraft = null;
+function openPlanSheet(ym, it) {
+  draft = null; rdraft = null;
+  const t0 = today(), [py, pm] = UI.pym, defDay = ym === curYM() || !ym ? t0.getDate() : 1;
+  ym = ym || ymKey(py, pm);
+  pdraft = it ? { ...it, r: it.r ? { ...it.r } : null, ym, rep: !!it.sid, isNew: false }
+    : { id: uid(), k: 'p', t: '', d: defDay, tm: '', a: '', n: '', r: { db: 1, at: '10:00' }, sid: '', done: 0, ym, rep: false, isNew: true };
+  drawPlanSheet(); showSheet();
+  if (pdraft.isNew) setTimeout(() => sheet.querySelector('#pt')?.focus(), 280);
+}
+function drawPlanSheet() {
+  const p = pdraft, [y, m] = p.ym.split('-').map(Number), dateVal = `${y}-${pad(m)}-${pad(Math.min(p.d, dim(y, m - 1)))}`;
+  const seg = (act, val, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${p[val] === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const r = p.r, rd = r ? remindAt(p.ym, p) : null;
+  const ph = { m: 'Например: встреча с братом', p: 'Например: аренда квартиры', t: 'Например: записаться к врачу', g: 'Например: прочитать книгу' }[p.k];
+  const quick = p.k === 'm' ? [['0|' + (p.tm ? addMin(p.tm, -60) : '09:00'), p.tm ? 'За час' : 'Утром в 9:00'], ['0|' + (p.tm || '09:00'), 'В момент'], ['1|20:00', 'Накануне в 20:00']]
+    : [['0|09:00', 'В день в 9:00'], ['1|10:00', 'За день в 10:00'], ['3|10:00', 'За 3 дня']];
+  sheet.innerHTML = `<div class="grab"></div><h3 class="disp">${p.isNew ? 'Новый пункт плана' : 'Изменить пункт'}</h3><p class="lead">${p.k === 'g' ? 'Большая цель на месяц' : 'У каждого пункта своё напоминание — как будильник'}</p>
+    <div class="field"><span class="flabel">Тип</span>${seg('pk', 'k', [['m', 'Встреча'], ['p', 'Оплата'], ['t', 'Дело'], ['g', 'Цель']])}</div>
+    <div class="field"><label for="pt">Название</label><input id="pt" class="inp" maxlength="40" placeholder="${ph}" value="${esc(p.t)}"></div>
+    ${p.k === 'p' ? `<div class="field"><label for="pa">Сумма, ${UI.cur}</label><input id="pa" class="inp" inputmode="decimal" placeholder="0" value="${p.a || ''}"></div>` : ''}
+    ${p.k !== 'g' ? `<div class="row2" style="margin:0 0 16px"><div><label class="flabel" for="pd">${p.k === 'p' ? 'Оплатить до' : 'Дата'}</label><input id="pd" type="date" class="inp" value="${dateVal}"></div>
+      <div><label class="flabel" for="ptm">Время</label><input id="ptm" type="time" class="inp" value="${p.tm}"></div></div>
+    <div class="field"><span class="flabel">Напоминание</span><div class="seg"><button class="${r ? 'on' : ''}" data-act="prem" data-v="1">Напомнить</button><button class="${r ? '' : 'on'}" data-act="prem" data-v="0">Без напоминания</button></div>
+      ${r ? `<div class="sugg" style="margin-top:10px">${quick.map(([v, l]) => `<button data-act="pq" data-v="${v}" class="${(r.db + '|' + r.at) === v ? 'on' : ''}" style="${(r.db + '|' + r.at) === v ? 'background:var(--a);color:var(--ink);border-color:var(--a)' : ''}">${l}</button>`).join('')}</div>
+        <div class="row2" style="margin-top:10px"><div><label class="flabel" for="prd">День напоминания</label><input id="prd" type="date" class="inp" value="${rd ? dk(rd) : ''}" max="${dateVal}"></div>
+        <div><label class="flabel" for="prt">Время</label><input id="prt" type="time" class="inp" value="${r.at}"></div></div>
+        ${rd ? `<div class="info" style="margin:12px 0 0">${ico('bell', 'width:16px;height:16px')}Бот напишет ${remText(p.ym, p)}</div>` : ''}` : ''}</div>
+    <div class="field"><span class="flabel">Повторять</span><div class="seg"><button class="${p.rep ? '' : 'on'}" data-act="prep" data-v="0">Один раз</button><button class="${p.rep ? 'on' : ''}" data-act="prep" data-v="1">Каждый месяц</button></div></div>` : ''}
+    <div class="field"><label for="pn">Заметка</label><input id="pn" class="inp" maxlength="60" placeholder="Необязательно" value="${esc(p.n || '')}"></div>
+    <button class="btn" data-act="psave">Сохранить</button>
+    ${p.isNew ? '' : `<div class="row2"><button class="btn ghost" data-act="close">Отмена</button><button class="btn danger" data-act="pdel">Удалить</button></div>`}`;
+}
+sheet.addEventListener('input', e => {
+  if (!pdraft) return;
+  const id = e.target.id, v = e.target.value;
+  if (id === 'pt') pdraft.t = v; else if (id === 'pa') pdraft.a = v; else if (id === 'pn') pdraft.n = v;
+});
+sheet.addEventListener('change', e => {
+  if (!pdraft) return;
+  const id = e.target.id, v = e.target.value, p = pdraft;
+  if (id === 'pd' && v) {
+    const rd = p.r ? remindAt(p.ym, p) : null;
+    const [y, m, d] = v.split('-').map(Number); p.ym = ymKey(y, m - 1); p.d = d;
+    if (rd && p.r) { const diff = Math.round((pd(dk(planDate(p.ym, p))) - pd(dk(rd))) / 86400000); p.r.db = Math.max(0, diff); }
+    drawPlanSheet();
+  } else if (id === 'ptm') { p.tm = v; drawPlanSheet(); }
+  else if (id === 'prd' && v && p.r) { const diff = Math.round((pd(dk(planDate(p.ym, p))) - pd(v)) / 86400000); p.r.db = Math.max(0, diff); drawPlanSheet(); }
+  else if (id === 'prt' && v && p.r) { p.r.at = v; drawPlanSheet(); }
+});
+async function handlePlan(a, b) {
+  const H = (ym, id) => planList(ym).find(i => i.id === id);
+  if (a === 'padd') { if (planList(ymKey(...UI.pym)).length >= PLAN_MAX) { toast('Максимум ' + PLAN_MAX + ' пунктов в месяц'); return; } openPlanSheet(null, null); }
+  else if (a === 'pedit') openPlanSheet(b.dataset.ym, H(b.dataset.ym, b.dataset.id));
+  else if (a === 'pdone') { const it = H(b.dataset.ym, b.dataset.id); if (!it) return; it.done = it.done ? 0 : 1; markPlan(b.dataset.ym); haptic(it.done ? 'success' : 'select'); if (it.done && it.k === 'p') toast('Оплата отмечена'); const sy = window.scrollY; render(); window.scrollTo(0, sy); schedulePlanSync(); }
+  else if (a === 'pmon') { let [y, m] = UI.pym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.pym = [y, m]; haptic('select'); render(); }
+  else if (a === 'pcur') { UI.cur = b.dataset.c; markDirty('ui'); haptic('select'); render(); schedulePlanSync(); }
+  else if (!pdraft) return;
+  else if (a === 'pk') { pdraft.k = b.dataset.v; if (pdraft.k === 'g') pdraft.r = null; else if (!pdraft.r) pdraft.r = pdraft.k === 'm' ? { db: 0, at: '09:00' } : { db: 1, at: '10:00' }; drawPlanSheet(); }
+  else if (a === 'prem') { pdraft.r = b.dataset.v === '1' ? (pdraft.r || (pdraft.k === 'm' ? { db: 0, at: pdraft.tm ? addMin(pdraft.tm, -60) : '09:00' } : { db: 1, at: '10:00' })) : null; drawPlanSheet(); }
+  else if (a === 'pq') { const [db, at] = b.dataset.v.split('|'); pdraft.r = { db: +db, at }; drawPlanSheet(); }
+  else if (a === 'prep') { pdraft.rep = b.dataset.v === '1'; drawPlanSheet(); }
+  else if (a === 'psave') {
+    const p = pdraft, t = (p.t || '').trim();
+    if (!t) { const i = sheet.querySelector('#pt'); i.focus(); i.style.borderColor = '#F2786E'; return; }
+    const amount = p.k === 'p' ? Math.max(0, parseFloat(String(p.a).replace(',', '.').replace(/[^\d.]/g, '')) || 0) : 0;
+    const item = { id: p.id, k: p.k, t, d: p.d, tm: p.k === 'g' ? '' : p.tm, a: amount, n: (p.n || '').trim(), r: p.k === 'g' ? null : p.r, sid: p.sid || '', done: p.done || 0 };
+    // переносим между месяцами, если поменяли дату
+    for (const ym in P.items) { const ix = P.items[ym].findIndex(i => i.id === p.id); if (ix >= 0) { P.items[ym].splice(ix, 1); markPlan(ym); } }
+    if (p.rep && item.k !== 'g') {
+      if (!item.sid) item.sid = uid();
+      const s = P.series.find(x => x.sid === item.sid), tpl = { sid: item.sid, k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: item.r ? { ...item.r } : null, from: p.ym, skip: s ? s.skip || [] : [] };
+      if (s) Object.assign(s, tpl, { from: s.from < p.ym ? s.from : p.ym }); else P.series.push(tpl);
+      // обновляем будущие невыполненные копии
+      for (const ym in P.items) if (ym > p.ym) for (const i of P.items[ym]) if (i.sid === item.sid && !i.done) { Object.assign(i, { k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: item.r ? { ...item.r } : null }); markPlan(ym); }
+      markDirty('pls');
+    } else if (item.sid) { // был повтор, стал разовым: остановить серию после этого месяца
+      const s = P.series.find(x => x.sid === item.sid);
+      if (s) { P.series = P.series.filter(x => x.sid !== item.sid); for (const ym in P.items) if (ym > p.ym) { const n0 = P.items[ym].length; P.items[ym] = P.items[ym].filter(i => !(i.sid === item.sid && !i.done)); if (P.items[ym].length !== n0) markPlan(ym); } markDirty('pls'); }
+      item.sid = '';
+    }
+    planList(p.ym).push(item); markPlan(p.ym);
+    const was = p.isNew; pdraft = null; closeSheet(); UI.pym = p.ym.split('-').map((x, i) => i ? +x - 1 : +x); render(); schedulePlanSync(); haptic('success');
+    const rt = remText(ymKey(UI.pym[0], UI.pym[1]), item);
+    toast(was ? (rt ? 'Добавлено · напомню ' + rt : 'Добавлено в план') : 'Сохранено');
+  }
+  else if (a === 'pdel') {
+    const p = pdraft;
+    let all = false;
+    if (p.sid) all = await ask(`«${p.t}» повторяется каждый месяц. Удалить и из следующих месяцев? (Отмена — удалить только в этом месяце)`);
+    else if (!(await ask(`Удалить «${p.t}» из плана?`))) return;
+    for (const ym in P.items) { const ix = P.items[ym].findIndex(i => i.id === p.id); if (ix >= 0) { P.items[ym].splice(ix, 1); markPlan(ym); } }
+    if (p.sid) {
+      const s = P.series.find(x => x.sid === p.sid);
+      if (all) { P.series = P.series.filter(x => x.sid !== p.sid); for (const ym in P.items) if (ym > p.ym) { P.items[ym] = P.items[ym].filter(i => !(i.sid === p.sid && !i.done)); markPlan(ym); } }
+      else if (s) (s.skip = s.skip || []).push(p.ym);
+      markDirty('pls');
+    }
+    pdraft = null; closeSheet(); render(); schedulePlanSync(); toast('Удалено');
+  }
+}
+let planSyncT = null;
+const schedulePlanSync = () => { if (!apiOn) return; clearTimeout(planSyncT); planSyncT = setTimeout(syncPlan, 1200); };
+function syncPlan() {
+  if (!apiOn) return;
+  const t = today(), yms = [0, 1, 2].map(i => ymKey(new Date(t.getFullYear(), t.getMonth() + i, 1).getFullYear(), new Date(t.getFullYear(), t.getMonth() + i, 1).getMonth()));
+  yms.forEach(materialize);
+  const items = [], now = Date.now();
+  for (const ym of yms) for (const it of planList(ym)) {
+    if (it.done || it.k === 'g' || !it.r) continue;
+    const r = remindAt(ym, it); if (!r || r.getTime() < now - 60000) continue;
+    items.push({ id: it.id, kind: it.k, title: it.t, amount: it.k === 'p' && it.a ? fmtMoney(it.a) : '', when: (it.k === 'p' ? 'Оплатить до ' : '') + whenText(ym, it), at: r.getTime() });
+  }
+  api('/api/plan', { items: items.slice(0, 80) }).catch(() => {});
+}
+
+
 /* ---------- Events ---------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
@@ -1035,6 +1255,7 @@ document.addEventListener('click', async e => {
   else if (a === 'mon') { let [y, m] = UI.ym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.ym = [y, m]; haptic('select'); render(); }
   else if (a === 'yr') { UI.year += +b.dataset.n; haptic('select'); render(); }
   else if (a === 'flt') { UI.filter = b.dataset.f; haptic('select'); render(); }
+  else if (['padd', 'pedit', 'pdone', 'pmon', 'pcur', 'pk', 'prem', 'pq', 'prep', 'psave', 'pdel'].includes(a)) { await handlePlan(a, b); }
   else if (a === 'acc') { UI.accent = b.dataset.c; applyAccent(); markDirty('ui'); haptic('select'); render(); }
   else if (a === 'add') { if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
   else if (a === 'rem') openRem();
@@ -1108,11 +1329,12 @@ function openApp() {
 })();
 load().then(() => {
   applyAccent();
-  startEl.classList.add('on'); // стартовый экран при каждом открытии
+  if (location.hash === '#plan') { setTab('plan'); } else startEl.classList.add('on'); // стартовый экран при каждом открытии
+  syncPlan();
   flush(); render(); syncNow(); loadRemSettings();
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (UI.tab === 'today') UI.day = TK(); render(); scheduleSync(); } });
-window.__ms = { S, UI, render, monthStats, dayStat, streak, toggle, TK, setTab };
+window.__ms = { S, P, UI, render, monthStats, dayStat, streak, toggle, TK, setTab, remindAt };
 })();
 </script>
 </body>

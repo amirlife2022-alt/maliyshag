@@ -30,7 +30,12 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runReminders(env, Date.now()).catch(e => console.error('cron error', e && e.stack || e)));
+    // каждую минуту: напоминания по пунктам плана; каждые 15 минут: напоминания о привычках
+    const now = Date.now();
+    ctx.waitUntil((async () => {
+      const used = await runPlanReminders(env, now).catch(e => { console.error('plan cron error', e && e.stack || e); return 0; });
+      if (new Date(now).getUTCMinutes() % 15 === 0) await runReminders(env, now, MAX_SENDS_PER_RUN - used).catch(e => console.error('cron error', e && e.stack || e));
+    })());
   }
 };
 
@@ -239,6 +244,20 @@ async function onApi(path, req, env) {
   }
 
   if (path === '/api/me') return json({ ok: true, ...(await settingsOut(env, user.id, now)) });
+  if (path === '/api/plan') {
+    // приложение присылает все будущие напоминания по плану; неотправленные заменяем целиком
+    const items = Array.isArray(body.items) ? body.items.slice(0, 80) : [];
+    const stmts = [env.DB.prepare('DELETE FROM plan WHERE user_id=? AND sent=0').bind(user.id)];
+    for (const it of items) {
+      const at = Number(it.at);
+      if (!Number.isFinite(at) || at < now - 5 * 60000 || at > now + 400 * 86400000) continue;
+      stmts.push(env.DB.prepare('INSERT OR IGNORE INTO plan (user_id, item_id, remind_at, kind, title, amount, when_text, sent) VALUES (?,?,?,?,?,?,?,0)')
+        .bind(user.id, String(it.id || '').slice(0, 32), at, ['m', 'p', 't'].includes(it.kind) ? it.kind : 't', String(it.title || '').slice(0, 80), String(it.amount || '').slice(0, 32), String(it.when || '').slice(0, 64)));
+    }
+    await env.DB.batch(stmts);
+    if (Math.random() < 0.05) await env.DB.prepare('DELETE FROM plan WHERE remind_at < ?').bind(now - 30 * 86400000).run();
+    return json({ ok: true, count: stmts.length - 1 });
+  }
   if (path === '/api/sound') { const r = await sendSound(env, user.id); return json({ ok: r.status === 200, error: r.status === 403 ? 'blocked' : undefined }); }
   return json({ ok: false, error: 'not_found' }, 404);
 }
@@ -300,11 +319,11 @@ export function composeMessage(u, kind, row) {
   return `${head}\n\n${list}\n\n${tail}`;
 }
 
-export async function runReminders(env, now) {
+export async function runReminders(env, now, budget = MAX_SENDS_PER_RUN) {
   const { results } = await env.DB.prepare("SELECT * FROM users WHERE mode != 'off' AND blocked = 0 AND tz IS NOT NULL").all();
   let sends = 0;
   for (const u of results || []) {
-    if (sends >= MAX_SENDS_PER_RUN) break;
+    if (sends >= budget) break;
     const tz = validTz(u.tz); if (!tz) continue;
     const lp = localParts(now, tz);
     if (u.reminded_day === lp.day) continue;
@@ -340,3 +359,27 @@ export async function runReminders(env, now) {
   return sends;
 }
 async function markReminded(env, id, day) { await env.DB.prepare('UPDATE users SET reminded_day=? WHERE id=?').bind(day, id).run(); }
+
+/* ---------------- Напоминания по плану (точное время) ---------------- */
+const PLAN_MAX_PER_RUN = 20;
+export function composePlanMessage(r) {
+  const t = escHtml(r.title || ''), w = escHtml(r.when_text || ''), a = escHtml(r.amount || '');
+  if (r.kind === 'p') return `💳 <b>Напоминание об оплате</b>\n\n${t}${a ? ' — <b>' + a + '</b>' : ''}\n${w}\n\nОтметь в плане, когда оплатишь.`;
+  if (r.kind === 'm') return `📅 <b>Встреча</b>\n\n${t}\n${w}`;
+  return `✅ <b>Дело по плану</b>\n\n${t}\n${w}`;
+}
+export async function runPlanReminders(env, now) {
+  const { results } = await env.DB.prepare('SELECT p.*, u.blocked FROM plan p LEFT JOIN users u ON u.id = p.user_id WHERE p.sent = 0 AND p.remind_at <= ? AND p.remind_at > ? ORDER BY p.remind_at LIMIT ?')
+    .bind(now, now - 6 * 3600000, PLAN_MAX_PER_RUN).all();
+  let sends = 0;
+  for (const r of results || []) {
+    const mark = () => env.DB.prepare('UPDATE plan SET sent=1 WHERE user_id=? AND item_id=? AND remind_at=?').bind(r.user_id, r.item_id, r.remind_at).run();
+    if (r.blocked) { await mark(); continue; }
+    const res = await tgCall(env, 'sendMessage', { chat_id: r.user_id, text: composePlanMessage(r), parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: 'Открыть план', web_app: { url: env.APP_URL + '#plan' } }]] } });
+    sends++;
+    if (res.status === 0 || res.status === 429) break; // повторим через минуту
+    if (res.status === 403) await env.DB.prepare('UPDATE users SET blocked=1 WHERE id=?').bind(r.user_id).run();
+    await mark();
+  }
+  return sends;
+}

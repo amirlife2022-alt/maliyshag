@@ -33,3 +33,15 @@ CREATE TABLE IF NOT EXISTS meta (
   k TEXT PRIMARY KEY,
   v TEXT
 );
+CREATE TABLE IF NOT EXISTS plan (
+  user_id INTEGER NOT NULL,
+  item_id TEXT NOT NULL,
+  remind_at INTEGER NOT NULL,
+  kind TEXT,
+  title TEXT,
+  amount TEXT,
+  when_text TEXT,
+  sent INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, item_id, remind_at)
+);
+CREATE INDEX IF NOT EXISTS plan_due ON plan (sent, remind_at);

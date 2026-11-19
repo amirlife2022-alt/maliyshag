@@ -75,7 +75,7 @@ jobs:
           workers_dev = true
 
           [triggers]
-          crons = ["*/15 * * * *"]
+          crons = ["* * * * *"]
 
           [[d1_databases]]
           binding = "DB"
