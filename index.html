@@ -959,7 +959,7 @@ async function handleRem(a, b) {
   }
   else if (a === 'r-sound') {
     if (tg.requestWriteAccess && !(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.allows_write_to_pm)) await new Promise(res => { try { tg.requestWriteAccess(x => res(x)); } catch (e) { res(true); } });
-    try { const res = await api('/api/sound', {}); toast(res && res.ok ? 'Бот прислал звук — открой чат' : 'Сначала нажми Start в чате с ботом'); } catch (e) { toast('Не удалось. Проверь интернет'); }
+    try { const res = await api('/api/sound', {}); toast(res && res.ok ? 'Бот прислал звук — открой чат' : 'Сначала нажми Start в чате с ботом'); } catch (e) { toast('Сервер недоступен из твоей сети. Попробуй с VPN'); }
   }
   else if (a === 'r-save') {
     if (!apiOn) return;
@@ -975,7 +975,7 @@ async function handleRem(a, b) {
       UI.rem = res.settings; UI.remInfo = { asr: res.asr, remindAt: res.remindAt }; Store.set('rem', JSON.stringify(UI.rem));
       haptic('success'); closeSheet(); render(); syncNow();
       toast(r.mode === 'off' ? 'Напоминания выключены' : res.remindAt ? 'Напомню сегодня в ' + res.remindAt : 'Напоминания включены');
-    } catch (e) { b.textContent = 'Сохранить'; toast('Не удалось сохранить. Проверь интернет'); }
+    } catch (e) { b.textContent = 'Сохранить'; toast('Сервер недоступен из твоей сети. Попробуй с VPN'); }
   }
 }
 
