@@ -191,17 +191,40 @@ button.card:active{transform:scale(.985)}
 .tab.on{background:var(--a);color:var(--ink)}
 
 /* start screen */
-.start{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);display:none}
+.start{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);display:none;transition:opacity .45s ease,transform .45s ease}
 .start.on{display:block}
-.start .bgr{position:absolute;inset:0;background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 38%,color-mix(in srgb,var(--a) 55%,var(--bg)) 66%,var(--a) 88%,color-mix(in srgb,var(--a) 70%,#fff) 100%)}
-.start .orb{position:absolute;left:50%;top:18%;width:300px;height:300px;margin-left:-150px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--a) 22%,transparent) 0%,transparent 70%)}
+.start.out{opacity:0;transform:scale(1.04);pointer-events:none}
+.start .bgr{position:absolute;inset:0;background:linear-gradient(180deg,var(--bg) 0%,var(--bg) 38%,color-mix(in srgb,var(--a) 55%,var(--bg)) 66%,var(--a) 88%,color-mix(in srgb,var(--a) 70%,#fff) 100%);opacity:0;animation:fadeIn 1.2s ease .1s forwards}
+.start .orb{position:absolute;left:50%;top:18%;width:320px;height:320px;margin-left:-160px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--a) 26%,transparent) 0%,transparent 70%);opacity:0;animation:fadeIn 1s ease .3s forwards,breathe 5s ease-in-out 2.2s infinite}
 .start .in{position:relative;display:flex;flex-direction:column;align-items:center;height:100%;max-width:440px;margin:0 auto;padding:calc(28px + var(--safeT)) 24px calc(34px + var(--safeB))}
-.start img{width:min(236px,52vw);height:auto}
+.lgw{width:min(260px,58vw);animation:float 5.5s ease-in-out 2.4s infinite}
+.lg{display:block;width:100%;height:auto;overflow:visible}
+.lg .mk{stroke-dasharray:1 1;stroke-dashoffset:1}
+.lg .m1{animation:draw 1s cubic-bezier(.55,0,.3,1) .35s forwards}
+.lg .m2{animation:draw .22s linear 1.3s forwards}
+.lg .m3{animation:draw .32s cubic-bezier(.2,.8,.3,1) 1.5s forwards}
+.lg .st{transform-box:fill-box;transform-origin:center;opacity:0;animation:pop .6s cubic-bezier(.2,1.5,.4,1) 1.75s forwards,twinkle 2.8s ease-in-out 2.6s infinite}
+.lg .st2{animation-delay:1.92s,3.3s}
 .start h1{margin:0;font-size:32px;line-height:1.12;font-weight:700;color:var(--ink);text-align:center}
+.start h1 span{display:inline-block}
 .start p{margin:14px 0 0;font-size:15px;line-height:1.45;font-weight:600;color:#1C1F14;text-align:center;max-width:300px}
-.go{margin-top:30px;width:100%;height:64px;border-radius:999px;background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 26px}
-.go span:first-child{font-size:14px;font-weight:800;letter-spacing:.08em;color:var(--a)}
-.go span:last-child{width:50px;height:50px;border-radius:50%;background:var(--text);color:var(--ink);display:grid;place-items:center}
+.rise{opacity:0;transform:translateY(18px);animation:rise .75s cubic-bezier(.2,.8,.2,1) forwards}
+.slide{position:relative;margin-top:30px;width:100%;height:64px;border-radius:999px;background:var(--ink);padding:7px;overflow:hidden;user-select:none;-webkit-user-select:none}
+.slide .fill{position:absolute;left:0;top:0;bottom:0;width:64px;border-radius:999px;background:color-mix(in srgb,var(--a) 22%,transparent)}
+.slide .txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-left:46px;font-size:13px;font-weight:800;letter-spacing:.1em;background:linear-gradient(90deg,var(--a) 0%,var(--a) 40%,#fff 50%,var(--a) 60%,var(--a) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 2.6s linear infinite;pointer-events:none}
+.knob{position:relative;z-index:2;width:50px;height:50px;border-radius:50%;background:var(--text);color:var(--ink);display:grid;place-items:center;touch-action:none;cursor:grab;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.knob.hint{animation:nudge 2.8s ease-in-out 3.2s infinite}
+.knob svg{width:22px;height:22px;stroke-width:2.2}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes pop{0%{opacity:0;transform:scale(0) rotate(-70deg)}100%{opacity:1;transform:none}}
+@keyframes twinkle{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(.72) rotate(25deg)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-10px) rotate(-1.5deg)}}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.12);opacity:.75}}
+@keyframes fadeIn{to{opacity:1}}
+@keyframes rise{to{opacity:1;transform:none}}
+@keyframes shine{from{background-position:100% 0}to{background-position:-150% 0}}
+@keyframes nudge{0%,70%,100%{transform:translateX(0)}80%{transform:translateX(22px)}90%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.start *,.start{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition:none!important}}
 .spacer{flex:1}
 
 /* sheet */
@@ -251,13 +274,28 @@ select.inp option{background:#16180F}
 <div class="start" id="start">
   <div class="bgr"></div><div class="orb"></div>
   <div class="in">
-    <div class="pill" style="color:#D8DBCF"><span class="dot"></span>трекер привычек</div>
+    <div class="pill rise" style="color:#D8DBCF;animation-delay:.15s"><span class="dot"></span>трекер привычек</div>
     <div class="spacer"></div>
-    <img src="logo.png" alt="Логотип Qawiyy: буква каф со звёздами и стрелкой вверх">
+    <div class="lgw">
+      <svg class="lg" viewBox="30 70 452 375" role="img" aria-label="Логотип Qawiyy: буква каф со звёздами и стрелкой">
+        <defs><mask id="lgm" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+          <path class="mk m1" d="M70 226C50 280 55 340 95 380C140 420 210 432 270 416C312 404 337 370 337 330C337 306 327 290 315 282C285 292 240 292 205 285C172 278 160 250 168 225C178 195 220 182 258 182C290 182 310 195 322 210C330 226 300 240 262 238" pathLength="1" stroke="#fff" stroke-width="96" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="mk m2" d="M318 222L366 194L398 172" pathLength="1" stroke="#fff" stroke-width="80" fill="none" stroke-linecap="round"/>
+          <path class="mk m3" d="M362 166L452 138M416 160L422 240" pathLength="1" stroke="#fff" stroke-width="130" fill="none" stroke-linecap="round"/>
+        </mask></defs>
+        <path d="M 439.500 130.674 C 433.087 131.561, 415.332 132.240, 390 132.568 C 368.275 132.849, 349.474 133.299, 348.219 133.567 C 345.329 134.184, 342.009 139.551, 342.004 143.615 C 341.998 148.766, 345.343 151.584, 360.542 159.226 C 372.645 165.312, 374.739 166.690, 373.604 167.824 C 371.947 169.481, 327.785 201.105, 324.032 203.322 L 321.334 204.916 317.265 199.146 C 299.697 174.234, 279.226 163.485, 249.500 163.564 C 226.306 163.626, 209.924 170.119, 197.696 184.098 C 193.063 189.394, 168.578 234.100, 164.104 245.431 C 160.919 253.499, 160.589 267.101, 163.399 274.500 C 168.105 286.889, 180.169 301.321, 191.622 308.262 C 202.074 314.596, 208.874 316.389, 222.500 316.404 C 245.668 316.430, 269.559 307.263, 300.855 286.338 C 306.069 282.852, 310.640 280, 311.013 280 C 313.986 280, 323 328.598, 323 344.623 L 323 350.830 317.750 355.014 C 296.912 371.620, 265.775 381.456, 225.348 384.202 C 148.473 389.424, 94.489 360.478, 75.590 303.901 C 69.749 286.414, 68.041 260.252, 71.402 239.761 C 72.281 234.404, 72.993 229.679, 72.986 229.261 C 72.978 228.842, 67.822 238.187, 61.529 250.027 C 51.119 269.615, 49.945 272.363, 48.502 280.527 C 36.968 345.799, 67.269 400.377, 125.957 420.039 C 159.689 431.340, 207.029 431.687, 247.789 420.931 C 274.395 413.911, 297.213 400.257, 308.870 384.382 C 317.356 372.826, 341.692 325.598, 344.137 315.940 C 346.731 305.696, 346.348 289.632, 343.055 270.651 C 341.925 264.133, 341 258.451, 341 258.023 C 341 257.595, 346.130 253.391, 352.400 248.682 L 363.801 240.119 380.001 209.559 C 388.911 192.752, 396.596 179, 397.078 179 C 399.776 179, 403.755 193.422, 409.630 224.500 C 410.982 231.650, 412.541 238.926, 413.094 240.668 C 415.369 247.828, 425.883 249.672, 430.778 243.769 C 431.480 242.922, 433.856 235.540, 436.058 227.364 C 444.535 195.889, 452.493 172.158, 461.565 151.306 C 466.464 140.045, 466.773 138.117, 464.335 133.990 C 461.188 128.663, 457.554 128.178, 439.500 130.674 M 211.763 208.033 C 204.923 209.185, 197.353 211.797, 190.631 215.325 L 184.762 218.405 185.321 223.820 C 188.009 249.863, 215.018 256.605, 255.733 241.397 C 263.890 238.350, 280.419 230.765, 281.923 229.378 C 282.646 228.711, 274.062 221.681, 267.784 217.798 C 253.509 208.972, 230.259 204.918, 211.763 208.033" fill="#fff" fill-rule="evenodd" mask="url(#lgm)"/>
+        <path class="st" d="M 186.465 100.750 C 184.109 106.946, 174.156 116.953, 167.754 119.564 C 165.143 120.629, 163.006 121.776, 163.004 122.114 C 163.002 122.452, 165.137 123.541, 167.750 124.535 C 174.103 126.951, 184.049 136.897, 186.465 143.250 C 187.459 145.863, 188.548 147.998, 188.886 147.996 C 189.224 147.994, 190.371 145.857, 191.436 143.246 C 192.593 140.410, 195.812 136.059, 199.436 132.436 C 203.059 128.812, 207.410 125.593, 210.246 124.436 C 212.857 123.371, 214.993 122.275, 214.993 122 C 214.993 121.725, 212.857 120.629, 210.246 119.564 C 204.007 117.020, 193.980 106.993, 191.436 100.754 C 190.371 98.143, 189.224 96.006, 188.886 96.004 C 188.548 96.002, 187.459 98.138, 186.465 100.750" fill="#fff"/>
+        <path class="st st2" d="M 255.567 89.629 C 252.373 95.730, 247.773 100.165, 241.454 103.235 L 237.130 105.335 241.896 107.543 C 247.841 110.297, 253.422 115.957, 256.230 122.078 L 258.382 126.769 260.536 122.134 C 263.780 115.154, 267.783 111.018, 274.260 107.955 L 280.106 105.190 276.587 104.029 C 271.576 102.375, 263.071 94.352, 260.541 88.891 L 258.387 84.242 255.567 89.629" fill="#fff"/>
+      </svg>
+    </div>
     <div class="spacer"></div>
-    <h1 class="disp">Сила — в малых шагах</h1>
-    <p>Отмечай привычки каждый день и смотри, как растёт твоя цепочка</p>
-    <button class="go" id="go"><span>НАЧАТЬ</span><span><svg class="i" viewBox="0 0 24 24" style="stroke-width:2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+    <h1 class="disp"><span class="rise" style="animation-delay:1.6s">Сила —</span> <span class="rise" style="animation-delay:1.72s">в малых</span> <span class="rise" style="animation-delay:1.84s">шагах</span></h1>
+    <p class="rise" style="animation-delay:2.05s">Отмечай привычки каждый день и смотри, как растёт твоя цепочка</p>
+    <div class="slide rise" id="slide" style="animation-delay:2.25s">
+      <div class="fill" id="sfill"></div>
+      <div class="txt">ПРОВЕДИ, ЧТОБЫ НАЧАТЬ</div>
+      <button class="knob hint" id="knob" aria-label="Начать: проведи вправо или нажми Enter"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
   </div>
 </div>
 
@@ -1047,7 +1085,27 @@ const syncEl = document.getElementById('sync');
 syncEl.lastChild.textContent = useCloud ? 'Telegram' : 'это устройство';
 syncEl.classList.toggle('local', !useCloud);
 const startEl = document.getElementById('start');
-document.getElementById('go').addEventListener('click', () => { UI.intro = true; markDirty('ui'); flush(); haptic('success'); startEl.classList.remove('on'); });
+function openApp() {
+  if (startEl.classList.contains('out')) return;
+  UI.intro = true; markDirty('ui'); flush(); haptic('success');
+  startEl.classList.add('out');
+  setTimeout(() => { startEl.classList.remove('on', 'out'); }, 460);
+}
+(() => { // свайп вправо, чтобы войти
+  const knob = document.getElementById('knob'), track = document.getElementById('slide'), fill = document.getElementById('sfill');
+  let x0 = null, x = 0, max = 0, moved = false;
+  const set = (v, anim) => { const t = anim ? 'transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1)' : 'none'; knob.style.transition = t; fill.style.transition = t; knob.style.transform = `translateX(${v}px)`; fill.style.width = (64 + v) + 'px'; };
+  knob.addEventListener('pointerdown', e => { x0 = e.clientX; moved = false; max = track.clientWidth - knob.offsetWidth - 14; knob.classList.remove('hint'); try { knob.setPointerCapture(e.pointerId); } catch (_) {} });
+  knob.addEventListener('pointermove', e => { if (x0 == null) return; x = Math.max(0, Math.min(max, e.clientX - x0)); if (x > 4) moved = true; set(x, false); });
+  const end = () => {
+    if (x0 == null) return; x0 = null;
+    if (x > max * 0.72) { set(max, true); setTimeout(openApp, 180); }
+    else { set(0, true); if (!moved) { knob.classList.remove('hint'); void knob.offsetWidth; knob.style.animation = 'nudge .9s ease-in-out'; setTimeout(() => { knob.style.animation = ''; }, 900); } }
+    x = 0;
+  };
+  knob.addEventListener('pointerup', end); knob.addEventListener('pointercancel', end);
+  knob.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); set(track.clientWidth - knob.offsetWidth - 14, true); setTimeout(openApp, 200); } });
+})();
 load().then(() => {
   applyAccent();
   startEl.classList.add('on'); // стартовый экран при каждом открытии
