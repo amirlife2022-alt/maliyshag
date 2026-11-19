@@ -1,0 +1,18 @@
+name: Diagnose server
+on:
+  push:
+    branches: [main]
+    paths: ['diag/**']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe API
+        run: |
+          U=https://maliyshag-api.maliyshag.workers.dev
+          echo "--- health"; curl -s -m 20 -i $U/health | head -20
+          echo "--- preflight"; curl -s -m 20 -i -X OPTIONS $U/api/sound -H 'Origin: https://amirlife2022-alt.github.io' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' | head -20
+          echo "--- post sound (bad initData)"; curl -s -m 20 -i -X POST $U/api/sound -H 'Origin: https://amirlife2022-alt.github.io' -H 'content-type: application/json' -d '{"initData":"x"}' | head -20
+          echo "--- post me (bad initData)"; curl -s -m 20 -X POST $U/api/me -H 'content-type: application/json' -d '{"initData":"x"}'; echo
+          echo "--- config.js on pages"; curl -s -m 20 https://amirlife2022-alt.github.io/maliyshag/config.js; echo
+          echo "--- sound file"; curl -s -m 20 -o /dev/null -w "%{http_code} %{size_download}\n" https://amirlife2022-alt.github.io/maliyshag/sounds/qawiyy-alarm.mp3
