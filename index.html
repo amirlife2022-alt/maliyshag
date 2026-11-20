@@ -1092,6 +1092,15 @@ function renderPlan() {
   const todo = rest.filter(i => !i.done), done = rest.filter(i => i.done);
   const groups = []; for (const it of todo) { const dt = planDate(ym, it), lbl = dayLabelPlan(dt); const g = groups[groups.length - 1]; if (g && g.lbl === lbl) g.items.push(it); else groups.push({ lbl, items: [it] }); }
   const meet = rest.filter(i => i.k === 'm').length, tasks = rest.filter(i => i.k === 't');
+  // при просмотре текущего месяца показываем и ближайшие пункты следующих двух месяцев
+  const ahead = [];
+  if (isCur) for (let k = 1; k <= 2; k++) {
+    const nd = new Date(y, m + k, 1), nym = ymKey(nd.getFullYear(), nd.getMonth()); materialize(nym);
+    for (const it of planList(nym).filter(i => i.k !== 'g' && !i.done).sort((a, b) => a.d - b.d || (a.tm || '99').localeCompare(b.tm || '99'))) {
+      const lbl = dayLabelPlan(planDate(nym, it)), g = ahead[ahead.length - 1];
+      if (g && g.lbl === lbl) g.items.push([nym, it]); else ahead.push({ lbl, items: [[nym, it]] });
+    }
+  }
   view.innerHTML = `<div class="fade">
     <div class="nav3"><button class="circ" data-act="pmon" data-n="-1" aria-label="Предыдущий месяц">${ico('left')}</button>
       <div><h1 class="disp">${cap(M_NOM[m])} ${y}</h1><small>план на месяц</small></div>
@@ -1105,7 +1114,8 @@ function renderPlan() {
     <button class="addbtn" data-act="padd"><span>ДОБАВИТЬ В ПЛАН</span><span>${ico('plus', 'stroke-width:2.2')}</span></button>
     ${goals.length ? `<div class="sec"><div class="sh"><h2>Цели месяца</h2><span>${goals.filter(i => i.done).length} из ${goals.length}</span></div><div class="list">${goals.map(i => planCard(ym, i)).join('')}</div></div>` : ''}
     ${groups.map(g => `<div class="sec"><div class="sh"><h2>${g.lbl}</h2></div><div class="list">${g.items.map(i => planCard(ym, i)).join('')}</div></div>`).join('')}
-    ${!list.length ? `<div class="glass empty"><b>${isCur ? 'План на месяц пуст' : 'В этом месяце пока ничего'}</b><p>Добавь встречи, оплаты и дела. Для каждого можно поставить своё напоминание — бот напишет точно в это время.</p></div>` : ''}
+    ${ahead.length ? `<div class="sec"><div class="sh"><h2 style="color:var(--mut)">Дальше</h2><span>следующие месяцы</span></div></div>` + ahead.map(g => `<div class="sec" style="margin-top:14px"><div class="sh"><h2>${g.lbl}</h2></div><div class="list">${g.items.map(([nym, i]) => planCard(nym, i)).join('')}</div></div>`).join('') : ''}
+    ${!list.length && !ahead.length ? `<div class="glass empty"><b>${isCur ? 'План на месяц пуст' : 'В этом месяце пока ничего'}</b><p>Добавь встречи, оплаты и дела. Для каждого можно поставить своё напоминание — бот напишет точно в это время.</p></div>` : ''}
     ${done.length ? `<div class="sec"><div class="sh"><h2>Выполнено</h2><span>${done.length}</span></div><div class="list">${done.map(i => planCard(ym, i)).join('')}</div></div>` : ''}
     <div class="sec"><div class="sh"><h2>Валюта</h2></div><div class="filters" style="margin-top:0">${CURS.map(c => `<button class="pill ${c === UI.cur ? 'on' : ''}" data-act="pcur" data-c="${c}">${c}</button>`).join('')}</div></div>
     ${!apiOn ? `<p class="note">Напоминания по плану приходят от бота, когда приложение открыто в Телеграме.</p>` : ''}
@@ -1162,9 +1172,8 @@ sheet.addEventListener('change', e => {
   if (!pdraft) return;
   const id = e.target.id, v = e.target.value, p = pdraft;
   if (id === 'pd' && v) {
-    const rd = p.r ? remindAt(p.ym, p) : null;
+    // при смене даты напоминание сдвигается вместе с ней (сохраняем «за сколько дней»)
     const [y, m, d] = v.split('-').map(Number); p.ym = ymKey(y, m - 1); p.d = d;
-    if (rd && p.r) { const diff = Math.round((pd(dk(planDate(p.ym, p))) - pd(dk(rd))) / 86400000); p.r.db = Math.max(0, diff); }
     drawPlanSheet();
   } else if (id === 'ptm') { p.tm = v; drawPlanSheet(); }
   else if (id === 'prd' && v && p.r) { const diff = Math.round((pd(dk(planDate(p.ym, p))) - pd(v)) / 86400000); p.r.db = Math.max(0, diff); drawPlanSheet(); }
@@ -1202,9 +1211,10 @@ async function handlePlan(a, b) {
       item.sid = '';
     }
     planList(p.ym).push(item); markPlan(p.ym);
-    const was = p.isNew; pdraft = null; closeSheet(); UI.pym = p.ym.split('-').map((x, i) => i ? +x - 1 : +x); render(); schedulePlanSync(); haptic('success');
-    const rt = remText(ymKey(UI.pym[0], UI.pym[1]), item);
-    toast(was ? (rt ? 'Добавлено · напомню ' + rt : 'Добавлено в план') : 'Сохранено');
+    const was = p.isNew; pdraft = null; closeSheet(); const lim = new Date(today().getFullYear(), today().getMonth() + 2, 1); if (p.ym < curYM() || p.ym > ymKey(lim.getFullYear(), lim.getMonth())) UI.pym = p.ym.split('-').map((x, i) => i ? +x - 1 : +x); else UI.pym = [today().getFullYear(), today().getMonth()]; render(); schedulePlanSync(); haptic('success');
+    const rt = remText(p.ym, item);
+    const on = `${planDate(p.ym, item).getDate()} ${M_GEN[planDate(p.ym, item).getMonth()]}`;
+    toast(was ? (item.k === 'g' ? 'Цель добавлена' : 'Добавлено на ' + on + (rt ? ' · напомню ' + rt : '')) : 'Сохранено');
   }
   else if (a === 'pdel') {
     const p = pdraft;
