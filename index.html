@@ -51,6 +51,12 @@ svg.i .f{fill:var(--a);opacity:.38;stroke:none}
 .brand b{display:block;font-size:17px;font-weight:600}
 .brand small{display:block;font-size:12px;margin-top:2px;color:var(--mut)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);font-size:12.5px;font-weight:600;white-space:nowrap;color:var(--text2)}
+.pill[hidden]{display:none}
+.probadge{background:var(--a);border-color:transparent;color:var(--ink);font-weight:800;letter-spacing:.08em;font-size:12px}
+.probadge svg{width:15px;height:15px}
+.pwfeat{display:flex;flex-direction:column;gap:10px;margin:18px 0 6px;text-align:left}
+.pwfeat div{display:flex;gap:10px;align-items:center;font-size:14.5px}
+.pwfeat svg{width:18px;height:18px;color:var(--a);flex-shrink:0}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--a)}
 .pill.local .dot{background:var(--fire)}
 .pill svg{width:15px;height:15px}
@@ -344,7 +350,7 @@ select.inp option{background:#16180F}
       <div class="logo"><img src="logo.png" alt="Qawiyy"></div>
       <div><b class="disp">Qawiyy</b><small>малый шаг каждый день</small></div>
     </div>
-    <div class="pill" id="sync"><span class="dot"></span><span></span></div>
+    <div style="display:flex;gap:8px;align-items:center"><button class="pill probadge" id="probadge" data-act="mypro" hidden></button><div class="pill" id="sync"><span class="dot"></span><span></span></div></div>
   </header>
   <main id="view"><div class="loading">Загрузка…</div></main>
 </div>
@@ -571,6 +577,7 @@ async function load() {
     else if (key === 'rem' && v && typeof v === 'object') UI.rem = v;
     else if (key === 'pro' && v && typeof v === 'object') UI.pro = v;
     else if (key === 'lt' && typeof v === 'number') UI.lt = v;
+    else if (key === 'pwel') UI.pwel = !!v;
     else if (key === 'ui' && v && typeof v === 'object') { if (ACCENTS.includes(v.accent)) UI.accent = v.accent; UI.intro = !!v.intro; if (CURS.includes(v.cur)) UI.cur = v.cur; }
     else if (key === 'pls' && Array.isArray(v)) P.series = v;
     else if (/^pl_\d{4}_\d{2}_\d$/.test(key) && Array.isArray(v)) { const ym = key.slice(3, 10).replace('_', '-'); (P.parts ||= {})[ym] = P.parts[ym] || []; P.parts[ym][+key.slice(11)] = v; }
@@ -885,7 +892,12 @@ function renderHabits() {
 }
 
 const RENDER = { today: renderToday, plan: renderPlan, month: renderMonth, year: renderYear, habits: renderHabits };
-const render = () => RENDER[UI.tab]();
+function updateProBadge() {
+  const b = document.getElementById('probadge'), sy = document.getElementById('sync'); if (!b) return;
+  const paid = proState().paid; b.hidden = !paid; if (sy) sy.hidden = paid;
+  if (paid) b.innerHTML = ico('crown') + 'PRO';
+}
+const render = () => { updateProBadge(); RENDER[UI.tab](); };
 function applyAccent() { document.documentElement.style.setProperty('--a', proActive() ? UI.accent : ACCENTS[0]); }
 function setTab(t) {
   UI.tab = t;
@@ -993,7 +1005,7 @@ async function loadRemSettings() {
     if (r && r.ok && r.settings) {
       const wasPaid = proState().paid;
       UI.rem = r.settings; UI.remInfo = { asr: r.asr, remindAt: r.remindAt }; Store.set('rem', JSON.stringify(UI.rem));
-      if (r.pro) { UI.pro = r.pro; Store.set('pro', JSON.stringify(r.pro)); if (!wasPaid && r.pro.paid) { haptic('success'); toast('Qawiyy Pro активирован 💎'); if (paywallOpen) closeSheet(); } }
+      if (r.pro) { UI.pro = r.pro; Store.set('pro', JSON.stringify(r.pro)); if (r.pro.paid && (!wasPaid || !UI.pwel)) { haptic('success'); UI.pwel = true; Store.set('pwel', 'true'); setTimeout(() => openMyPro(true), 300); } }
       applyAccent(); render();
     }
   } catch (e) {}
@@ -1343,7 +1355,7 @@ const PRO_FEATURES = [
 const REASON = { habits: `В бесплатной версии — до ${FREE_HABITS} привычек`, plan: '«План» доступен в Qawiyy Pro', year: 'Статистика года — в Qawiyy Pro', reminders: 'Напоминания — в Qawiyy Pro', icons: 'Эта коллекция иконок — в Qawiyy Pro', colors: 'Цвета оформления — в Qawiyy Pro' };
 function proCard() {
   const st = proState();
-  if (st.paid) { const d = new Date(st.proUntil); return `<div class="procard paid"><span class="ib">${ico('crown')}</span><span class="tx"><b>Qawiyy Pro</b><small>действует до ${d.getDate()} ${M_GEN[d.getMonth()]} ${d.getFullYear()}</small></span><button class="btn-s" data-act="paywall" data-r="">Продлить</button></div>`; }
+  if (st.paid) return `<div class="procard paid"><span class="ib">${ico('crown')}</span><span class="tx"><b>Qawiyy Pro активен</b><small>${proUntilText()}</small></span><button class="btn-s" data-act="mypro">Подробнее</button></div>`;
   if (st.trial) return `<div class="procard"><span class="ib">${ico('crown')}</span><span class="tx"><b>Пробный Pro</b><small>осталось ${daysLeft(st.trialEnds)} ${plural(daysLeft(st.trialEnds), 'день', 'дня', 'дней')} — всё открыто</small></span><button class="btn-s" data-act="paywall" data-r="">Оформить</button></div>`;
   return `<div class="procard free"><span class="ib">${ico('crown')}</span><span class="tx"><b>Бесплатная версия</b><small>${FREE_HABITS} привычки, без «Плана» и напоминаний</small></span><button class="btn-s" data-act="paywall" data-r="">Pro</button></div>`;
 }
@@ -1364,7 +1376,23 @@ function renderLocked(what) {
     <div class="pill" style="margin-top:16px;background:rgba(10,11,8,.6)">${ico('crown', 'color:var(--a)')}Qawiyy Pro</div>
     <button class="btn" data-act="paywall" data-r="${what}" style="margin-top:22px">Открыть Pro</button></div></div>`;
 }
+const proAuto = () => !!(UI.pro && String(UI.pro.plan || '').startsWith('sub-'));
+function proUntilText() { const d = new Date(proState().proUntil); return `${proAuto() ? 'продлится' : 'действует до'} ${d.getDate()} ${M_GEN[d.getMonth()]} ${d.getFullYear()}${proAuto() ? ' автоматически' : ''}`; }
+function openMyPro(first) {
+  if (!proState().paid) return openPaywall('');
+  draft = null; rdraft = null; pdraft = null; paywallOpen = false;
+  sheet.innerHTML = `<div class="grab"></div><div style="text-align:center">
+    <div class="ib" style="margin:4px auto 0;width:72px;height:72px;border-radius:24px;background:var(--a);color:var(--ink)">${ico('crown', 'width:36px;height:36px')}</div>
+    <h3 class="disp" style="margin:16px 0 6px;font-size:24px">${first ? 'Добро пожаловать в Qawiyy Pro' : 'Qawiyy Pro активен'}</h3>
+    <p class="lead" style="margin:0">${first ? 'Джазакаллаху хайран за поддержку 🤍' : 'Спасибо, что ты с нами 🤍'}</p>
+    <div class="info" style="margin:12px auto 0">${ico('ok', 'width:16px;height:16px')}Pro ${proUntilText()}</div></div>
+    <div class="pwfeat">${PRO_FEATURES.map(([i, a]) => `<div>${ico('ok')}<span>${a}</span></div>`).join('')}</div>
+    <button class="btn" data-act="pwok" style="margin-top:18px">${first ? 'Начать' : 'Отлично'}</button>
+    ${PAY_SUB && proAuto() ? `<button class="btn ghost" data-act="psubman" style="margin-top:10px">Управлять подпиской</button><p class="note" style="margin-top:8px">Отменить автопродление можно в любой момент — Pro доработает до конца оплаченного срока.</p>` : ''}`;
+  showSheet();
+}
 function openPaywall(reason) {
+  if (proState().paid) return openMyPro(false);
   draft = null; rdraft = null; pdraft = null; paywallOpen = true;
   UI.payReason = reason || ''; UI.payPlan = UI.payPlan && PAY[UI.payPlan].url ? UI.payPlan : (PAY.year.url ? 'year' : 'month');
   drawPaywall(); showSheet();
@@ -1498,6 +1526,9 @@ document.addEventListener('click', async e => {
   else if (a === 'acc') { if (!proActive() && b.dataset.c !== ACCENTS[0]) { openPaywall('colors'); return; } UI.accent = b.dataset.c; applyAccent(); markDirty('ui'); haptic('select'); render(); }
   else if (a === 'add') { if (!proActive() && S.habits.length >= FREE_HABITS) { openPaywall('habits'); return; } if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
   else if (a === 'paywall') openPaywall(b.dataset.r);
+  else if (a === 'mypro') { haptic('light'); openMyPro(false); }
+  else if (a === 'pwok') { haptic('success'); closeSheet(); }
+  else if (a === 'psubman') { try { if (inTg && tg.openTelegramLink) tg.openTelegramLink(PAY_SUB); else window.open(PAY_SUB, '_blank'); } catch (e) {} }
   else if (a === 'pplan') { UI.payPlan = b.dataset.v; haptic('select'); drawPaywall(); }
   else if (a === 'ppay') payNow();
   else if (a === 'ppayweb') payNow(true);
