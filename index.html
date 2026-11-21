@@ -188,6 +188,14 @@ button.card:active{transform:scale(.985)}
 .sw.on{border-color:var(--text)}
 .note{color:var(--mut);font-size:12.5px;text-align:center;margin-top:18px;line-height:1.45}
 
+.swr{position:relative;border-radius:22px;touch-action:pan-y}
+.swr>.card{position:relative;z-index:1;transition:transform .28s cubic-bezier(.2,.8,.2,1),background .2s,border-color .2s;will-change:transform}
+.swr>.card:not(.on){background:#141512}
+.swd{position:absolute;right:10px;top:50%;width:58px;height:58px;margin-top:-29px;border-radius:50%;background:#E5534B;color:#fff;display:grid;place-items:center;opacity:0;transform:scale(.6);transition:opacity .2s,transform .2s;z-index:0}
+.swr.dragging .swd{transition:none}
+.swd svg{width:24px;height:24px;stroke-width:2}
+.toast .undo{margin-left:12px;padding:5px 12px;border-radius:999px;background:var(--ink);color:var(--a);font-weight:800;font-size:13px;pointer-events:auto}
+.toast{display:flex;align-items:center}
 /* nav */
 .tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;border-radius:28px;background:rgba(24,26,19,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 40px rgba(0,0,0,.5);width:min(520px,calc(100% - 24px))}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:20px;color:var(--mut);font-size:11px;font-weight:700;transition:background .2s,color .2s}
@@ -430,6 +438,7 @@ const IC = {
   flame: 'M12 22c4 0 7-2.7 7-6.8 0-3.6-2.4-5.6-3.6-8.2-.5 1.9-1.5 3-2.9 3.6C12.8 7 11.4 4.4 9 2c.2 3.6-1.6 5.8-3.2 7.8C4.7 11.2 5 12.6 5 15.2 5 19.3 8 22 12 22z',
   bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
   ok: 'M5 12.5l4.5 4.5L19 7', plus: 'M12 5v14M5 12h14', left: 'M15 6l-6 6 6 6', right: 'M9 6l6 6-6 6',
+  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
   grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01', pin: 'M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z'
 };
 /* Pro-коллекции (двухцветные иконки). PRO_LOCKED = true включит блокировку, когда появится подписка */
@@ -678,10 +687,10 @@ function renderToday() {
     const sub = h.type === 'd'
       ? `${st} ${plural(st, 'день', 'дня', 'дней')} · ${monthCount(h, d.getFullYear(), d.getMonth())}/${Math.min(h.goal, dim(d.getFullYear(), d.getMonth()))} за месяц`
       : `${st} ${plural(st, 'неделя', 'недели', 'недель')} подряд`;
-    return `<button class="card ${done ? 'on' : ''}" data-act="tog" data-id="${h.id}" data-k="${key}" aria-pressed="${done}" aria-label="${done ? 'Снять отметку' : 'Отметить'}: ${esc(h.name)}">
+    return `<div class="swr" data-del="h:${h.id}">${swBtn(h.name)}<button class="card ${done ? 'on' : ''}" data-act="tog" data-id="${h.id}" data-k="${key}" aria-pressed="${done}" aria-label="${done ? 'Снять отметку' : 'Отметить'}: ${esc(h.name)}">
       <span class="ib">${ico(hIcon(h))}</span>
       <span class="tx"><b>${esc(h.name)}</b><small>${ico('flame')}<span>${sub}</span></small></span>
-      <span class="chk">${ico('ok')}</span></button>`;
+      <span class="chk">${ico('ok')}</span></button></div>`;
   };
   const hs = daily(), ws = weekly(), wEnd = addD(mon, 6);
   const range = mon.getMonth() === wEnd.getMonth() ? `${mon.getDate()}–${wEnd.getDate()} ${M_GEN[wEnd.getMonth()]}` : `${mon.getDate()} ${M_SH[mon.getMonth()]} – ${wEnd.getDate()} ${M_SH[wEnd.getMonth()]}`;
@@ -801,10 +810,10 @@ function renderYear() {
 function renderHabits() {
   setGlow('right:-120px;top:-140px');
   const d = daily(), w = weekly(), f = UI.filter;
-  const item = h => `<div class="ritem" data-id="${h.id}"><div class="card">
+  const item = h => `<div class="ritem" data-id="${h.id}"><div class="swr" data-del="h:${h.id}">${swBtn(h.name)}<div class="card">
     <button class="ib" data-act="edit" data-id="${h.id}" aria-label="Изменить: ${esc(h.name)}">${ico(hIcon(h))}</button>
     <button class="tx" data-act="edit" data-id="${h.id}"><b>${esc(h.name)}</b><small style="color:var(--mut)">${h.type === 'd' ? (h.goal >= 31 ? 'каждый день' : 'цель: ' + h.goal + ' ' + plural(h.goal, 'день', 'дня', 'дней') + ' в месяц') : 'раз в неделю'}</small></button>
-    <span class="handle" data-drag="${h.id}" role="button" tabindex="0" aria-label="Перетащить: ${esc(h.name)}">${ico('grip')}</span></div></div>`;
+    <span class="handle" data-drag="${h.id}" role="button" tabindex="0" aria-label="Перетащить: ${esc(h.name)}">${ico('grip')}</span></div></div></div>`;
   view.innerHTML = `<div class="fade">
     <h1 class="h1 disp">Привычки</h1>
     <button class="addbtn" data-act="add"><span>ДОБАВИТЬ ПРИВЫЧКУ</span><span>${ico('plus', 'stroke-width:2.2')}</span></button>
@@ -900,6 +909,13 @@ scrim.addEventListener('click', closeSheet);
 /* ---------- Toast ---------- */
 const toastEl = document.getElementById('toast'); let toastT;
 function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 2400); }
+let undoFn = null;
+function toastUndo(msg, fn) {
+  undoFn = fn; toastEl.innerHTML = `<span>${esc(msg)}</span><button class="undo" type="button">Отменить</button>`; toastEl.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => { toastEl.classList.remove('on'); undoFn = null; }, 5000);
+}
+toastEl.addEventListener('click', e => { if (e.target.closest('.undo') && undoFn) { const f = undoFn; undoFn = null; toastEl.classList.remove('on'); f(); haptic('success'); } });
+const swBtn = name => `<button class="swd" type="button" data-act="swdel" aria-label="Удалить: ${esc(name)}" tabindex="-1">${ico('trash')}</button>`;
 
 /* ---------- Сервер: синхронизация и напоминания ---------- */
 const API = String(window.MS_API || '').replace(/\/$/, '');
@@ -1078,9 +1094,9 @@ function planCard(ym, it) {
   if (it.k === 'p' && it.a) bits.push(fmtMoney(it.a));
   if (it.sid) bits.push('каждый месяц');
   const rt = !it.done ? remText(ym, it) : '';
-  return `<div class="card ${it.done ? 'on' : ''} pcard"><button class="ib" data-act="pedit" data-ym="${ym}" data-id="${it.id}" aria-label="Изменить: ${esc(it.t)}">${ico(KIND[it.k][1])}</button>
+  return `<div class="swr" data-del="p:${ym}:${it.id}">${swBtn(it.t)}<div class="card ${it.done ? 'on' : ''} pcard"><button class="ib" data-act="pedit" data-ym="${ym}" data-id="${it.id}" aria-label="Изменить: ${esc(it.t)}">${ico(KIND[it.k][1])}</button>
     <button class="tx" data-act="pedit" data-ym="${ym}" data-id="${it.id}"><b>${esc(it.t)}</b><small style="display:block;color:${over ? 'var(--fire)' : 'var(--mut)'}">${over ? 'просрочено · ' : ''}${KIND[it.k][0].toLowerCase()}${bits.length ? ' · ' + bits.join(' · ') : ''}</small>${rt ? `<small style="color:var(--a);font-weight:700">${ico('bell', 'width:13px;height:13px;color:var(--a)')}<span>напомню ${rt}</span></small>` : ''}</button>
-    <button class="chk" data-act="pdone" data-ym="${ym}" data-id="${it.id}" aria-pressed="${!!it.done}" aria-label="${it.done ? 'Снять отметку' : it.k === 'p' ? 'Отметить оплату' : 'Отметить'}: ${esc(it.t)}">${ico('ok')}</button></div>`;
+    <button class="chk" data-act="pdone" data-ym="${ym}" data-id="${it.id}" aria-pressed="${!!it.done}" aria-label="${it.done ? 'Снять отметку' : it.k === 'p' ? 'Отметить оплату' : 'Отметить'}: ${esc(it.t)}">${ico('ok')}</button></div></div>`;
 }
 function renderPlan() {
   setGlow('left:-120px;top:-120px');
@@ -1247,6 +1263,78 @@ function syncPlan() {
 }
 
 
+/* ---------- Удаление свайпом влево (как будильник в iPhone) ---------- */
+const SW_OPEN = 84;
+let swOpen = null, swSt = null, swSuppress = false;
+const swCard = row => row.querySelector(':scope > .card');
+function swSet(row, x, anim) { const c = swCard(row); if (!c) return; c.style.transition = anim ? '' : 'none'; c.style.transform = x ? `translateX(${x}px)` : ''; const d = row.querySelector('.swd'); if (d) { const k = Math.min(1, -x / SW_OPEN); d.style.opacity = k; d.style.transform = `scale(${0.6 + 0.4 * k})`; } }
+function swClose(row) { if (!row) return; row.classList.remove('open'); swSet(row, 0, true); if (swOpen === row) swOpen = null; }
+function snapshot() { return JSON.stringify({ h: S.habits, d: S.d, w: S.w, pi: P.items, ps: P.series }); }
+function restore(js) {
+  const o = JSON.parse(js); S.habits = o.h; S.d = o.d; S.w = o.w; P.items = o.pi; P.series = o.ps;
+  markDirty('habits'); markDirty('pls');
+  for (const k in S.d) markDirty('d_' + k.slice(0, 4) + '_' + k.slice(5, 7));
+  for (const k in S.w) markDirty('w_' + k.slice(0, 4));
+  for (const ym in P.items) markPlan(ym);
+  render(); scheduleSync(); schedulePlanSync();
+}
+function deleteHabit(id) {
+  for (const st of [S.d, S.w]) for (const k in st) { const ix = st[k].indexOf(id); if (ix >= 0) { st[k].splice(ix, 1); markDirty(st === S.d ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4)); } }
+  S.habits = S.habits.filter(x => x.id !== id); markDirty('habits');
+}
+function deletePlanItem(ym, id) {
+  const list = planList(ym), ix = list.findIndex(i => i.id === id); if (ix < 0) return;
+  const [it] = list.splice(ix, 1); markPlan(ym);
+  if (it.sid) { const s = P.series.find(x => x.sid === it.sid); if (s) { (s.skip = s.skip || []).push(ym); markDirty('pls'); } } // серия продолжится в другие месяцы
+}
+function swDelete(row) {
+  const [type, a, b] = row.dataset.del.split(':'), snap = snapshot();
+  let name = '';
+  if (type === 'h') { const h = S.habits.find(x => x.id === a); if (!h) return; name = h.name; deleteHabit(a); }
+  else { const it = planList(a).find(i => i.id === b); if (!it) return; name = it.t; deletePlanItem(a, b); }
+  haptic('success');
+  const c = swCard(row); if (c) { c.style.transition = 'transform .22s ease'; c.style.transform = 'translateX(-110%)'; }
+  row.style.transition = 'height .22s ease .12s, opacity .22s ease .12s, margin .22s ease .12s'; row.style.height = row.offsetHeight + 'px'; row.style.overflow = 'hidden';
+  requestAnimationFrame(() => { row.style.height = '0px'; row.style.opacity = '0'; });
+  setTimeout(() => { const sy = window.scrollY; render(); window.scrollTo(0, sy); scheduleSync(); schedulePlanSync(); }, 360);
+  swOpen = null;
+  toastUndo(`«${name.length > 22 ? name.slice(0, 21) + '…' : name}» удалено`, () => restore(snap));
+}
+document.addEventListener('pointerdown', e => {
+  const row = e.target.closest('.swr');
+  if (swOpen && swOpen !== row) { swClose(swOpen); }
+  if (!row || e.target.closest('[data-drag]') || e.target.closest('.swd') || e.button > 0) { swSt = null; return; }
+  swSt = { row, x0: e.clientX, y0: e.clientY, base: row.classList.contains('open') ? -SW_OPEN : 0, x: 0, on: false, id: e.pointerId };
+}, true);
+document.addEventListener('pointermove', e => {
+  const st = swSt; if (!st || e.pointerId !== st.id) return;
+  const dx = e.clientX - st.x0, dy = e.clientY - st.y0;
+  if (!st.on) {
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { st.on = true; st.row.classList.add('dragging'); }
+    else { if (Math.abs(dy) > 10) swSt = null; return; }
+  }
+  let x = st.base + dx; if (x > 0) x *= 0.25;
+  const w = st.row.offsetWidth; x = Math.max(-w, x); st.x = x; swSet(st.row, x, false);
+}, true);
+function swEnd(e) {
+  const st = swSt; if (!st || (e && e.pointerId !== st.id)) return; swSt = null;
+  if (!st.on) return;
+  swSuppress = true; setTimeout(() => { swSuppress = false; }, 80);
+  st.row.classList.remove('dragging');
+  const w = st.row.offsetWidth;
+  if (st.x < -w * 0.6) swDelete(st.row);
+  else if (st.x < -SW_OPEN / 2) { st.row.classList.add('open'); swSet(st.row, -SW_OPEN, true); swOpen = st.row; haptic('select'); }
+  else swClose(st.row);
+}
+document.addEventListener('pointerup', swEnd, true);
+document.addEventListener('pointercancel', swEnd, true);
+document.addEventListener('click', e => {
+  if (swSuppress) { e.stopPropagation(); e.preventDefault(); return; }
+  const del = e.target.closest('.swd');
+  if (del) { e.stopPropagation(); e.preventDefault(); swDelete(del.closest('.swr')); return; }
+  if (swOpen && swOpen.contains(e.target)) { e.stopPropagation(); e.preventDefault(); swClose(swOpen); }
+}, true);
+
 /* ---------- Events ---------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
@@ -1298,9 +1386,7 @@ document.addEventListener('click', async e => {
     else if (a === 'del') {
       const h = H(draft.id);
       if (!(await ask(`Удалить «${h.name}» вместе со всеми отметками?`))) return;
-      for (const st of [S.d, S.w]) for (const k in st) { const ix = st[k].indexOf(h.id); if (ix >= 0) { st[k].splice(ix, 1); markDirty(st === S.d ? 'd_' + k.slice(0, 4) + '_' + k.slice(5, 7) : 'w_' + k.slice(0, 4)); } }
-      S.habits = S.habits.filter(x => x.id !== h.id);
-      markDirty('habits'); closeSheet(); render(); scheduleSync(); toast('Привычка удалена');
+      deleteHabit(h.id); closeSheet(); render(); scheduleSync(); toast('Привычка удалена');
     }
   }
 });
