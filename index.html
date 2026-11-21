@@ -483,7 +483,7 @@ const PAY = {
   year: { url: 'https://t.me/tribute/app?startapp=pLaL', web: 'https://web.tribute.tg/p/LaL', price: '6 000 ₽', per: '500 ₽ в месяц вместо 999 ₽', note: 'полгода в подарок' },
   month: { url: 'https://t.me/tribute/app?startapp=pLaJ', web: 'https://web.tribute.tg/p/LaJ', price: '999 ₽', per: 'на 30 дней', note: '' }
 };
-const TRIAL_DAYS = 15, FREE_HABITS = 4, DAY_MS = 86400000;
+const TRIAL_DAYS = 7, FREE_HABITS = 4, DAY_MS = 86400000;
 function proState() {
   const now = Date.now(), p = UI.pro;
   if (p) { const paid = (p.proUntil || 0) > now, trial = !paid && now < (p.trialEnds || 0); return { active: paid || trial, paid, trial, trialEnds: p.trialEnds || 0, proUntil: p.proUntil || 0 }; }

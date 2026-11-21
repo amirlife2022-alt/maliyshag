@@ -398,7 +398,7 @@ export async function runPlanReminders(env, now) {
 }
 
 /* ---------------- Qawiyy Pro: пробный период и оплата через Tribute ---------------- */
-const TRIAL_DAYS = 15;
+const TRIAL_DAYS = 7;
 export async function getPro(env, id, now) {
   await env.DB.prepare('INSERT OR IGNORE INTO pro (user_id, trial_start, pro_until, updated_at) VALUES (?, ?, 0, ?)').bind(id, now, now).run();
   const r = await env.DB.prepare('SELECT * FROM pro WHERE user_id=?').bind(id).first();
