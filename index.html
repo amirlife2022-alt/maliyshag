@@ -196,6 +196,12 @@ button.card:active{transform:scale(.985)}
 .swd svg{width:24px;height:24px;stroke-width:2}
 .toast .undo{margin-left:12px;padding:5px 12px;border-radius:999px;background:var(--ink);color:var(--a);font-weight:800;font-size:13px;pointer-events:auto}
 .toast{display:flex;align-items:center}
+.remrows{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.remrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 6px 16px;border-radius:16px;background:var(--glass);border:1px solid var(--line)}
+.remrow span{font-weight:700;font-size:14px;display:flex;flex-direction:column}
+.remrow span small{font-weight:600;font-size:12px;color:var(--a);margin-top:2px}
+.remrow.gone span small{color:var(--mut)}
+.remrow .inp{width:136px;height:44px;flex-shrink:0;padding:0 12px}
 /* nav */
 .tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;border-radius:28px;background:rgba(24,26,19,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 40px rgba(0,0,0,.5);width:min(520px,calc(100% - 24px))}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:20px;color:var(--mut);font-size:11px;font-weight:700;transition:background .2s,color .2s}
@@ -1070,18 +1076,25 @@ function materialize(ym) {
   for (const s of P.series) {
     if (s.from > ym || (s.skip || []).includes(ym) || list.some(it => it.sid === s.sid)) continue;
     if (list.length >= PLAN_MAX) break;
-    list.push({ id: uid(), sid: s.sid, k: s.k, t: s.t, d: s.d, tm: s.tm, a: s.a, n: s.n, r: s.r ? { ...s.r } : null, done: 0 });
+    list.push({ id: uid(), sid: s.sid, k: s.k, t: s.t, d: s.d, tm: s.tm, a: s.a, n: s.n, r: cloneR(s.r), done: 0 });
     added = true;
   }
   if (added) markPlan(ym);
 }
-function remindAt(ym, it) {
-  if (!it.r || it.k === 'g') return null;
-  const dt = planDate(ym, it), [hh, mm] = (it.r.at || '09:00').split(':').map(Number);
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - (it.r.db || 0), hh, mm, 0, 0);
+// напоминаний у пункта может быть несколько: за 3, 2, 1 день и в сам день
+const rems = it => (Array.isArray(it.r) ? it.r : it.r ? [it.r] : []).slice().sort((a, b) => b.db - a.db);
+const cloneR = r => { const a = rems({ r }).map(o => ({ db: o.db, at: o.at })); return a.length ? a : null; };
+function remindTimes(ym, it) {
+  if (it.k === 'g') return [];
+  const dt = planDate(ym, it);
+  return rems(it).map(o => { const [hh, mm] = (o.at || '09:00').split(':').map(Number); return { db: o.db, t: new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - (o.db || 0), hh, mm, 0, 0) }; }).sort((a, b) => a.t - b.t);
 }
+function remindAt(ym, it) { const n = Date.now() - 60000; const x = remindTimes(ym, it).find(o => o.t.getTime() >= n); return x ? x.t : null; }
+const REM_DAYS = [[3, 'За 3 дня'], [2, 'За 2 дня'], [1, 'За день'], [0, 'В день']];
+const remDefault = (k, tm, db) => db > 0 ? (k === 'm' && db === 1 ? '20:00' : '10:00') : (tm ? (tm > '08:00' ? addMin(tm, -60) : tm) : '09:00');
+const fmtRem = r => { const k = dk(r); const day = k === TK() ? 'сегодня' : k === dk(addD(today(), 1)) ? 'завтра' : `${r.getDate()} ${M_SH[r.getMonth()]}`; return `${day} в ${pad(r.getHours())}:${pad(r.getMinutes())}`; };
 const whenText = (ym, it) => { const dt = planDate(ym, it); return `${dt.getDate()} ${M_GEN[dt.getMonth()]}${it.tm ? ', ' + it.tm : ''}`; };
-const remText = (ym, it) => { const r = remindAt(ym, it); if (!r || r.getTime() < Date.now() - 60000) return ''; const k = dk(r); const day = k === TK() ? 'сегодня' : k === dk(addD(today(), 1)) ? 'завтра' : `${r.getDate()} ${M_SH[r.getMonth()]}`; return `${day} в ${pad(r.getHours())}:${pad(r.getMinutes())}`; };
+const remText = (ym, it) => { const n = Date.now() - 60000, up = remindTimes(ym, it).filter(o => o.t.getTime() >= n); if (!up.length) return ''; return fmtRem(up[0].t) + (up.length > 1 ? ` · ещё ${up.length - 1}` : ''); };
 function dayLabelPlan(dt) {
   const k = dk(dt), t = TK();
   if (k === t) return 'Сегодня'; if (k === dk(addD(today(), 1))) return 'Завтра'; if (k === dk(addD(today(), -1))) return 'Вчера';
@@ -1151,18 +1164,16 @@ function openPlanSheet(ym, it) {
   draft = null; rdraft = null;
   const t0 = today(), [py, pm] = UI.pym, defDay = ym === curYM() || !ym ? t0.getDate() : 1;
   ym = ym || ymKey(py, pm);
-  pdraft = it ? { ...it, r: it.r ? { ...it.r } : null, ym, rep: !!it.sid, isNew: false }
-    : { id: uid(), k: 'p', t: '', d: defDay, tm: '', a: '', n: '', r: { db: 1, at: '10:00' }, sid: '', done: 0, ym, rep: false, isNew: true };
+  pdraft = it ? { ...it, r: cloneR(it.r), ym, rep: !!it.sid, isNew: false }
+    : { id: uid(), k: 'p', t: '', d: defDay, tm: '', a: '', n: '', r: [{ db: 1, at: '10:00' }, { db: 0, at: '09:00' }], sid: '', done: 0, ym, rep: false, isNew: true };
   drawPlanSheet(); showSheet();
   if (pdraft.isNew) setTimeout(() => sheet.querySelector('#pt')?.focus(), 280);
 }
 function drawPlanSheet() {
   const p = pdraft, [y, m] = p.ym.split('-').map(Number), dateVal = `${y}-${pad(m)}-${pad(Math.min(p.d, dim(y, m - 1)))}`;
   const seg = (act, val, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${p[val] === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-  const r = p.r, rd = r ? remindAt(p.ym, p) : null;
+  const r = cloneR(p.r), times = remindTimes(p.ym, p), past = Date.now() - 60000;
   const ph = { m: 'Например: встреча с братом', p: 'Например: аренда квартиры', t: 'Например: записаться к врачу', g: 'Например: прочитать книгу' }[p.k];
-  const quick = p.k === 'm' ? [['0|' + (p.tm ? addMin(p.tm, -60) : '09:00'), p.tm ? 'За час' : 'Утром в 9:00'], ['0|' + (p.tm || '09:00'), 'В момент'], ['1|20:00', 'Накануне в 20:00']]
-    : [['0|09:00', 'В день в 9:00'], ['1|10:00', 'За день в 10:00'], ['3|10:00', 'За 3 дня']];
   sheet.innerHTML = `<div class="grab"></div><h3 class="disp">${p.isNew ? 'Новый пункт плана' : 'Изменить пункт'}</h3><p class="lead">${p.k === 'g' ? 'Большая цель на месяц' : 'У каждого пункта своё напоминание — как будильник'}</p>
     <div class="field"><span class="flabel">Тип</span>${seg('pk', 'k', [['m', 'Встреча'], ['p', 'Оплата'], ['t', 'Дело'], ['g', 'Цель']])}</div>
     <div class="field"><label for="pt">Название</label><input id="pt" class="inp" maxlength="40" placeholder="${ph}" value="${esc(p.t)}"></div>
@@ -1170,10 +1181,9 @@ function drawPlanSheet() {
     ${p.k !== 'g' ? `<div class="row2" style="margin:0 0 16px"><div><label class="flabel" for="pd">${p.k === 'p' ? 'Оплатить до' : 'Дата'}</label><input id="pd" type="date" class="inp" value="${dateVal}"></div>
       <div><label class="flabel" for="ptm">Время</label><input id="ptm" type="time" class="inp" value="${p.tm}"></div></div>
     <div class="field"><span class="flabel">Напоминание</span><div class="seg"><button class="${r ? 'on' : ''}" data-act="prem" data-v="1">Напомнить</button><button class="${r ? '' : 'on'}" data-act="prem" data-v="0">Без напоминания</button></div>
-      ${r ? `<div class="sugg" style="margin-top:10px">${quick.map(([v, l]) => `<button data-act="pq" data-v="${v}" class="${(r.db + '|' + r.at) === v ? 'on' : ''}" style="${(r.db + '|' + r.at) === v ? 'background:var(--a);color:var(--ink);border-color:var(--a)' : ''}">${l}</button>`).join('')}</div>
-        <div class="row2" style="margin-top:10px"><div><label class="flabel" for="prd">День напоминания</label><input id="prd" type="date" class="inp" value="${rd ? dk(rd) : ''}" max="${dateVal}"></div>
-        <div><label class="flabel" for="prt">Время</label><input id="prt" type="time" class="inp" value="${r.at}"></div></div>
-        ${rd ? `<div class="info" style="margin:12px 0 0">${ico('bell', 'width:16px;height:16px')}Бот напишет ${remText(p.ym, p)}</div>` : ''}` : ''}</div>
+      ${r ? `<p class="lead" style="margin:12px 0 8px">Можно выбрать несколько — бот напомнит каждый раз</p>
+        <div class="sugg">${REM_DAYS.map(([db, l]) => { const on = r.some(o => o.db === db); return `<button data-act="prd" data-v="${db}" class="${on ? 'on' : ''}" aria-pressed="${on}">${on ? ico('ok', 'width:14px;height:14px;color:currentColor') : ''}${l}</button>`; }).join('')}</div>
+        <div class="remrows">${r.map(o => { const tt = times.find(x => x.db === o.db), gone = tt && tt.t.getTime() < past; return `<div class="remrow ${gone ? 'gone' : ''}"><span>${(REM_DAYS.find(x => x[0] === o.db) || [0, 'За ' + o.db + ' дн.'])[1]}${tt ? `<small>${gone ? 'уже прошло' : fmtRem(tt.t)}</small>` : ''}</span><input type="time" class="inp" id="prt_${o.db}" value="${o.at}" aria-label="Время напоминания: ${(REM_DAYS.find(x => x[0] === o.db) || [0, ''])[1]}"></div>`; }).join('')}</div>` : ''}</div>
     <div class="field"><span class="flabel">Повторять</span><div class="seg"><button class="${p.rep ? '' : 'on'}" data-act="prep" data-v="0">Один раз</button><button class="${p.rep ? 'on' : ''}" data-act="prep" data-v="1">Каждый месяц</button></div></div>` : ''}
     <div class="field"><label for="pn">Заметка</label><input id="pn" class="inp" maxlength="60" placeholder="Необязательно" value="${esc(p.n || '')}"></div>
     <button class="btn" data-act="psave">Сохранить</button>
@@ -1192,8 +1202,7 @@ sheet.addEventListener('change', e => {
     const [y, m, d] = v.split('-').map(Number); p.ym = ymKey(y, m - 1); p.d = d;
     drawPlanSheet();
   } else if (id === 'ptm') { p.tm = v; drawPlanSheet(); }
-  else if (id === 'prd' && v && p.r) { const diff = Math.round((pd(dk(planDate(p.ym, p))) - pd(v)) / 86400000); p.r.db = Math.max(0, diff); drawPlanSheet(); }
-  else if (id === 'prt' && v && p.r) { p.r.at = v; drawPlanSheet(); }
+  else if (id.startsWith('prt_') && v) { const db = +id.slice(4), r = cloneR(p.r) || []; const o = r.find(x => x.db === db); if (o) { o.at = v; p.r = r; drawPlanSheet(); } }
 });
 async function handlePlan(a, b) {
   const H = (ym, id) => planList(ym).find(i => i.id === id);
@@ -1203,23 +1212,23 @@ async function handlePlan(a, b) {
   else if (a === 'pmon') { let [y, m] = UI.pym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.pym = [y, m]; haptic('select'); render(); }
   else if (a === 'pcur') { UI.cur = b.dataset.c; markDirty('ui'); haptic('select'); render(); schedulePlanSync(); }
   else if (!pdraft) return;
-  else if (a === 'pk') { pdraft.k = b.dataset.v; if (pdraft.k === 'g') pdraft.r = null; else if (!pdraft.r) pdraft.r = pdraft.k === 'm' ? { db: 0, at: '09:00' } : { db: 1, at: '10:00' }; drawPlanSheet(); }
-  else if (a === 'prem') { pdraft.r = b.dataset.v === '1' ? (pdraft.r || (pdraft.k === 'm' ? { db: 0, at: pdraft.tm ? addMin(pdraft.tm, -60) : '09:00' } : { db: 1, at: '10:00' })) : null; drawPlanSheet(); }
-  else if (a === 'pq') { const [db, at] = b.dataset.v.split('|'); pdraft.r = { db: +db, at }; drawPlanSheet(); }
+  else if (a === 'pk') { const was = pdraft.k; pdraft.k = b.dataset.v; if (pdraft.k === 'g') pdraft.r = null; else if (was === 'g' || !rems(pdraft).length) pdraft.r = pdraft.k === 't' ? [{ db: 0, at: remDefault('t', pdraft.tm, 0) }] : [{ db: 1, at: remDefault(pdraft.k, pdraft.tm, 1) }, { db: 0, at: remDefault(pdraft.k, pdraft.tm, 0) }]; drawPlanSheet(); }
+  else if (a === 'prem') { pdraft.r = b.dataset.v === '1' ? (cloneR(pdraft.r) || [{ db: 1, at: remDefault(pdraft.k, pdraft.tm, 1) }, { db: 0, at: remDefault(pdraft.k, pdraft.tm, 0) }]) : null; drawPlanSheet(); }
+  else if (a === 'prd') { const db = +b.dataset.v, r = cloneR(pdraft.r) || [], ix = r.findIndex(o => o.db === db); if (ix >= 0) r.splice(ix, 1); else r.push({ db, at: remDefault(pdraft.k, pdraft.tm, db) }); pdraft.r = r.length ? r : null; haptic('select'); const sc = sheet.scrollTop; drawPlanSheet(); sheet.scrollTop = sc; }
   else if (a === 'prep') { pdraft.rep = b.dataset.v === '1'; drawPlanSheet(); }
   else if (a === 'psave') {
     const p = pdraft, t = (p.t || '').trim();
     if (!t) { const i = sheet.querySelector('#pt'); i.focus(); i.style.borderColor = '#F2786E'; return; }
     const amount = p.k === 'p' ? Math.max(0, parseFloat(String(p.a).replace(',', '.').replace(/[^\d.]/g, '')) || 0) : 0;
-    const item = { id: p.id, k: p.k, t, d: p.d, tm: p.k === 'g' ? '' : p.tm, a: amount, n: (p.n || '').trim(), r: p.k === 'g' ? null : p.r, sid: p.sid || '', done: p.done || 0 };
+    const item = { id: p.id, k: p.k, t, d: p.d, tm: p.k === 'g' ? '' : p.tm, a: amount, n: (p.n || '').trim(), r: p.k === 'g' ? null : cloneR(p.r), sid: p.sid || '', done: p.done || 0 };
     // переносим между месяцами, если поменяли дату
     for (const ym in P.items) { const ix = P.items[ym].findIndex(i => i.id === p.id); if (ix >= 0) { P.items[ym].splice(ix, 1); markPlan(ym); } }
     if (p.rep && item.k !== 'g') {
       if (!item.sid) item.sid = uid();
-      const s = P.series.find(x => x.sid === item.sid), tpl = { sid: item.sid, k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: item.r ? { ...item.r } : null, from: p.ym, skip: s ? s.skip || [] : [] };
+      const s = P.series.find(x => x.sid === item.sid), tpl = { sid: item.sid, k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: cloneR(item.r), from: p.ym, skip: s ? s.skip || [] : [] };
       if (s) Object.assign(s, tpl, { from: s.from < p.ym ? s.from : p.ym }); else P.series.push(tpl);
       // обновляем будущие невыполненные копии
-      for (const ym in P.items) if (ym > p.ym) for (const i of P.items[ym]) if (i.sid === item.sid && !i.done) { Object.assign(i, { k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: item.r ? { ...item.r } : null }); markPlan(ym); }
+      for (const ym in P.items) if (ym > p.ym) for (const i of P.items[ym]) if (i.sid === item.sid && !i.done) { Object.assign(i, { k: item.k, t: item.t, d: item.d, tm: item.tm, a: item.a, n: item.n, r: cloneR(item.r) }); markPlan(ym); }
       markDirty('pls');
     } else if (item.sid) { // был повтор, стал разовым: остановить серию после этого месяца
       const s = P.series.find(x => x.sid === item.sid);
@@ -1255,9 +1264,13 @@ function syncPlan() {
   yms.forEach(materialize);
   const items = [], now = Date.now();
   for (const ym of yms) for (const it of planList(ym)) {
-    if (it.done || it.k === 'g' || !it.r) continue;
-    const r = remindAt(ym, it); if (!r || r.getTime() < now - 60000) continue;
-    items.push({ id: it.id, kind: it.k, title: it.t, amount: it.k === 'p' && it.a ? fmtMoney(it.a) : '', when: (it.k === 'p' ? 'Оплатить до ' : '') + whenText(ym, it), at: r.getTime() });
+    if (it.done || it.k === 'g') continue;
+    for (const o of remindTimes(ym, it)) {
+      if (o.t.getTime() < now - 60000) continue;
+      const days = Math.round((pd(dk(planDate(ym, it))) - pd(dk(o.t))) / 86400000);
+      const lead = days <= 0 ? 'Сегодня' : days === 1 ? 'Завтра' : `Через ${days} ${plural(days, 'день', 'дня', 'дней')}`;
+      items.push({ id: it.id + '_' + o.db, kind: it.k, title: it.t, amount: it.k === 'p' && it.a ? fmtMoney(it.a) : '', when: `${lead} · ${it.k === 'p' ? 'оплатить до ' : ''}${whenText(ym, it)}`, at: o.t.getTime() });
+    }
   }
   api('/api/plan', { items: items.slice(0, 80) }).catch(() => {});
 }
@@ -1353,7 +1366,7 @@ document.addEventListener('click', async e => {
   else if (a === 'mon') { let [y, m] = UI.ym; m += +b.dataset.n; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } UI.ym = [y, m]; haptic('select'); render(); }
   else if (a === 'yr') { UI.year += +b.dataset.n; haptic('select'); render(); }
   else if (a === 'flt') { UI.filter = b.dataset.f; haptic('select'); render(); }
-  else if (['padd', 'pedit', 'pdone', 'pmon', 'pcur', 'pk', 'prem', 'pq', 'prep', 'psave', 'pdel'].includes(a)) { await handlePlan(a, b); }
+  else if (['padd', 'pedit', 'pdone', 'pmon', 'pcur', 'pk', 'prem', 'prd', 'prep', 'psave', 'pdel'].includes(a)) { await handlePlan(a, b); }
   else if (a === 'acc') { UI.accent = b.dataset.c; applyAccent(); markDirty('ui'); haptic('select'); render(); }
   else if (a === 'add') { if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
   else if (a === 'rem') openRem();
