@@ -22,6 +22,7 @@ export default {
     try {
       if (url.pathname === '/tg' && req.method === 'POST') return await onTelegram(req, env);
       if (url.pathname === '/tribute' && req.method === 'POST') return await onTribute(req, env);
+      if (url.pathname === '/tribute') return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font:17px system-ui;background:#0A0B08;color:#eee;padding:32px;line-height:1.5"><h2 style="color:#D4F36B">✅ Адрес для Tribute работает</h2><p>Этот адрес не нужно открывать в браузере. Его вставляют в поле Webhook в настройках Tribute — туда Tribute сам присылает уведомления об оплатах.</p>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
       if (url.pathname.startsWith('/api/') && req.method === 'POST') return await onApi(url.pathname, req, env);
       if (url.pathname === '/' || url.pathname === '/health') return json({ ok: true, service: 'maliyshag' });
       return json({ ok: false, error: 'not_found' }, 404);
