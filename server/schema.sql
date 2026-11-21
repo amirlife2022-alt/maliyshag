@@ -45,3 +45,22 @@ CREATE TABLE IF NOT EXISTS plan (
   PRIMARY KEY (user_id, item_id, remind_at)
 );
 CREATE INDEX IF NOT EXISTS plan_due ON plan (sent, remind_at);
+CREATE TABLE IF NOT EXISTS pro (
+  user_id INTEGER PRIMARY KEY,
+  trial_start INTEGER,
+  pro_until INTEGER DEFAULT 0,
+  plan TEXT,
+  note TEXT,
+  updated_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS purchases (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER,
+  product_id TEXT,
+  plan TEXT,
+  kind TEXT,
+  amount INTEGER,
+  currency TEXT,
+  created_at INTEGER,
+  raw TEXT
+);

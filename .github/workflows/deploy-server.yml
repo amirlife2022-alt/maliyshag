@@ -25,6 +25,8 @@ jobs:
       WORKER_NAME: maliyshag-api
       DB_NAME: maliyshag-db
       APP_URL: https://amirlife2022-alt.github.io/maliyshag/
+      TRIBUTE_MONTH_ID: ''
+      TRIBUTE_YEAR_ID: ''
       WRANGLER: npx --yes wrangler@4.162.0
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +86,8 @@ jobs:
 
           [vars]
           APP_URL = "$APP_URL"
+          TRIBUTE_MONTH_ID = "$TRIBUTE_MONTH_ID"
+          TRIBUTE_YEAR_ID = "$TRIBUTE_YEAR_ID"
           EOF
           cat wrangler.toml
 
@@ -95,6 +99,12 @@ jobs:
 
       - name: Set BOT_TOKEN secret
         run: echo -n "$BOT_TOKEN" | $WRANGLER secret put BOT_TOKEN
+
+      - name: Set TRIBUTE_API_KEY secret
+        env:
+          TRIBUTE_API_KEY: ${{ secrets.TRIBUTE_API_KEY }}
+        run: |
+          if [ -n "$TRIBUTE_API_KEY" ]; then echo -n "$TRIBUTE_API_KEY" | $WRANGLER secret put TRIBUTE_API_KEY; else echo "TRIBUTE_API_KEY пока не задан — оплаты Tribute не принимаются"; fi
 
       - name: Connect Telegram webhook
         run: |

@@ -202,6 +202,27 @@ button.card:active{transform:scale(.985)}
 .remrow span small{font-weight:600;font-size:12px;color:var(--a);margin-top:2px}
 .remrow.gone span small{color:var(--mut)}
 .remrow .inp{width:136px;height:44px;flex-shrink:0;padding:0 12px}
+.procard{display:flex;align-items:center;gap:14px;padding:14px;margin-top:16px;border-radius:22px;background:linear-gradient(120deg,color-mix(in srgb,var(--a) 16%,#14160F),#14160F 70%);border:1px solid color-mix(in srgb,var(--a) 35%,transparent)}
+.procard .ib{background:var(--a);color:var(--ink)}
+.procard .tx small{color:var(--soft)}
+.procard .tx b{white-space:normal}
+.procard.free{background:#14160F;border-color:var(--line)}
+.card.locked{opacity:.62}
+.card.locked .ib{color:var(--mut)}
+.feats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}
+.feats>div{display:flex;align-items:center;gap:10px;padding:10px;border-radius:16px;background:var(--glass);border:1px solid var(--line)}
+.feats .ib{width:36px;height:36px;border-radius:11px;color:var(--a)}
+.feats .ib svg{width:18px;height:18px}
+.feats .tx b{font-size:13px;white-space:normal}
+.feats .tx small{display:block;font-size:11.5px;margin-top:2px;white-space:normal}
+@media(max-width:380px){.feats{grid-template-columns:1fr}}
+.plans{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.plancard{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border-radius:20px;background:var(--glass);border:1.5px solid var(--line);text-align:left}
+.plancard.on{border-color:var(--a);background:color-mix(in srgb,var(--a) 10%,transparent)}
+.plancard .rad{width:22px;height:22px;border-radius:50%;border:2px solid var(--line2);flex-shrink:0}
+.plancard.on .rad{border:6px solid var(--a)}
+.plancard .pr{display:flex;flex-direction:column;align-items:flex-end;font-weight:800;font-size:17px}
+.plancard .pr i{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:3px 7px;border-radius:999px;background:var(--a);color:var(--ink);margin-top:4px;text-transform:uppercase}
 /* nav */
 .tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + var(--safeB));z-index:20;display:flex;gap:4px;padding:6px;border-radius:28px;background:rgba(24,26,19,.82);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 20px 40px rgba(0,0,0,.5);width:min(520px,calc(100% - 24px))}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;border-radius:20px;color:var(--mut);font-size:11px;font-weight:700;transition:background .2s,color .2s}
@@ -447,8 +468,23 @@ const IC = {
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
   grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01', pin: 'M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21zM12 7a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z'
 };
-/* Pro-коллекции (двухцветные иконки). PRO_LOCKED = true включит блокировку, когда появится подписка */
-const PRO_LOCKED = false;
+/* ---------- Qawiyy Pro ---------- */
+// Ссылки и цены продуктов в Tribute (заполняются, когда продукты созданы)
+const PAY = {
+  year: { url: '', price: '', per: '', note: 'выгоднее всего' },
+  month: { url: '', price: '', per: '', note: '' }
+};
+const TRIAL_DAYS = 15, FREE_HABITS = 4, DAY_MS = 86400000;
+function proState() {
+  const now = Date.now(), p = UI.pro;
+  if (p) { const paid = (p.proUntil || 0) > now, trial = !paid && now < (p.trialEnds || 0); return { active: paid || trial, paid, trial, trialEnds: p.trialEnds || 0, proUntil: p.proUntil || 0 }; }
+  const te = (UI.lt || now) + TRIAL_DAYS * DAY_MS; // без сервера — пробный период от первого запуска на устройстве
+  return { active: now < te, paid: false, trial: now < te, trialEnds: te, proUntil: 0 };
+}
+const proActive = () => proState().active;
+const daysLeft = t => Math.max(0, Math.ceil((t - Date.now()) / DAY_MS));
+const habitLocked = h => !proActive() && S.habits.indexOf(h) >= FREE_HABITS;
+/* Pro-коллекции (двухцветные иконки) — в Pro */
 const PRO_ICONS = {"misbaha":["M7.09 14.07a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M4.53 10.63a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M4.91 6.36a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M8.05 3.44a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M12.34 3.36a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M15.58 6.15a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M16.13 10.41a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M13.71 13.94a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M12 16v3M10.2 22l1.8-3 1.8 3","M7.09 14.07a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M4.53 10.63a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M4.91 6.36a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M8.05 3.44a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M12.34 3.36a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M15.58 6.15a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M16.13 10.41a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0M13.71 13.94a1.7 1.7 0 1 0 3.4 0a1.7 1.7 0 1 0 -3.4 0"],"crescent":["M14.5 3.2A8.8 8.8 0 1 0 20.8 15a7.2 7.2 0 0 1-6.3-11.8zM18.5 3.5l.7 1.5 1.6.2-1.2 1.1.3 1.6-1.4-.8-1.4.8.3-1.6-1.2-1.1 1.6-.2z","M14.5 3.2A8.8 8.8 0 1 0 20.8 15a7.2 7.2 0 0 1-6.3-11.8z"],"kaaba":["M4 7.5L12 4l8 3.5v9L12 20l-8-3.5zM4 7.5L12 11l8-3.5M12 11v9M4 10.5l8 3.5 8-3.5","M4 10.5l8 3.5 8-3.5v-3L12 11 4 7.5z"],"sajjada":["M6 2.5h12v19H6zM9 11V8.5a3 3 0 0 1 6 0V11v4H9zM6 18.5h12M9 21.5v-3M12 21.5v-3M15 21.5v-3","M9 15V8.5a3 3 0 0 1 6 0V15z"],"fanous":["M12 1.5v2M9 3.5h6l1.5 3h-9zM7.5 6.5h9V15l-4.5 3.5L7.5 15zM12 6.5v12M12 18.5v2.5M10 21h4","M7.5 6.5h9V15l-4.5 3.5L7.5 15z"],"minaret":["M2 21.5h20M4 21.5v-7a5 5 0 0 1 10 0v7M9 9.5V7M9 5.5h.01M17.5 21.5V9l1.5-2.5L20.5 9v12.5M17.5 12h3","M4 21.5v-7a5 5 0 0 1 10 0v7z"],"dua":["M4 21v-5.2c0-.9-.3-1.8-.8-2.6L2.5 12V7.5a1.2 1.2 0 0 1 2.4 0v3M4.9 8V5a1.2 1.2 0 0 1 2.4 0v5.5M7.3 5.8a1.2 1.2 0 0 1 2.4 0V13c0 1.4-.4 2.6-1.2 3.6L8 17.2V21M20 21v-5.2c0-.9.3-1.8.8-2.6l.7-1.2V7.5a1.2 1.2 0 0 0-2.4 0v3M19.1 8V5a1.2 1.2 0 0 0-2.4 0v5.5M16.7 5.8a1.2 1.2 0 0 0-2.4 0V13c0 1.4.4 2.6 1.2 3.6l.5.6V21","M2.5 12V7.5a1.2 1.2 0 0 1 2.4 0V5a1.2 1.2 0 0 1 2.4 0v.8a1.2 1.2 0 0 1 2.4 0V13c0 1.4-.4 2.6-1.2 3.6L8 17.2V21H4v-5.2c0-.9-.3-1.8-.8-2.6zM21.5 12V7.5a1.2 1.2 0 0 0-2.4 0V5a1.2 1.2 0 0 0-2.4 0v.8a1.2 1.2 0 0 0-2.4 0V13c0 1.4.4 2.6 1.2 3.6l.5.6V21h4v-5.2c0-.9.3-1.8.8-2.6z"],"dates":["M12 22c.5-4 .5-8-.2-11.5M11.8 10.5C10 7.5 6.5 6.8 3.5 8c3.2.3 5.8 1.2 8.3 2.5zM11.8 10.5c2-3 5.5-3.7 8.5-2.5-3.2.3-5.8 1.2-8.5 2.5zM11.8 10.5C10.6 7 11.5 4 14 2.5c-.4 3-.6 5.5-2.2 8zM11.8 10.5c-3-.3-5.8 1.2-7 4 2.4-1.5 4.6-2.7 7-4zM11.8 10.5c3-.3 5.8 1.2 7 4-2.4-1.5-4.6-2.7-7-4zM9.20 13.3a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0M12.3 13.4a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0M10.70 15.4a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0","M9.20 13.3a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0M12.3 13.4a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0M10.70 15.4a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0M11.8 10.5C10 7.5 6.5 6.8 3.5 8c3.2.3 5.8 1.2 8.3 2.5zM11.8 10.5c2-3 5.5-3.7 8.5-2.5-3.2.3-5.8 1.2-8.5 2.5z"],"fajr":["M2 18.5h20M6 18.5a6 6 0 0 1 12 0M12 3v6M9.5 5.5L12 3l2.5 2.5M4.5 11l1.4 1.4M19.5 11l-1.4 1.4M5 21.5h14","M6 18.5a6 6 0 0 1 12 0z"],"tahajjud":["M13 4A8 8 0 1 0 20 15.5 6.5 6.5 0 0 1 13 4zM18 3v3M16.5 4.5h3M21 8.5v2M20 9.5h2","M13 4A8 8 0 1 0 20 15.5 6.5 6.5 0 0 1 13 4z"],"qibla":["M2.5 12a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0M12 5.5l2.6 6.5-2.6 6.5-2.6-6.5zM12 2.5v1.5M12 20v1.5M2.5 12H4M20 12h1.5","M12 5.5l2.6 6.5H9.4z"],"rehal":["M2.5 5.5c3.2-1 6.3-.4 9.5 1.8 3.2-2.2 6.3-2.8 9.5-1.8v9c-3.2-1-6.3-.4-9.5 1.8-3.2-2.2-6.3-2.8-9.5-1.8zM12 7.3v9M6.5 21.5l5.5-5.2 5.5 5.2M5 9c1.5-.2 3 .1 4.5.8M5 12c1.5-.2 3 .1 4.5.8M19 9c-1.5-.2-3 .1-4.5.8M19 12c-1.5-.2-3 .1-4.5.8","M2.5 5.5c3.2-1 6.3-.4 9.5 1.8 3.2-2.2 6.3-2.8 9.5-1.8v9c-3.2-1-6.3-.4-9.5 1.8-3.2-2.2-6.3-2.8-9.5-1.8z"],"apple":["M12 7.5c-2-1.8-6-1.3-6.6 3-.6 4.2 2.2 9.5 4.6 9.5 1 0 1.3-.5 2-.5s1 .5 2 .5c2.4 0 5.2-5.3 4.6-9.5-.6-4.3-4.6-4.8-6.6-3zM12 7.5c0-2.2 1-3.8 3-4.5M12 6c-1-1.5-2.5-2-4-1.8","M12 7.5c-2-1.8-6-1.3-6.6 3-.6 4.2 2.2 9.5 4.6 9.5 1 0 1.3-.5 2-.5s1 .5 2 .5c2.4 0 5.2-5.3 4.6-9.5-.6-4.3-4.6-4.8-6.6-3z"],"kettlebell":["M9 8.5V7a3 3 0 0 1 6 0v1.5M5.5 14.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0M9.5 21h5","M5.5 14.5a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0"],"bike":["M2 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0M15 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0M5.5 16.5l4-7.5h5.5l3.5 7.5M9.5 9l3.5 7.5H5.5M8 6.5h3M15 9l-1-3h2.5","M2 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0M15 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0"],"pulse":["M20.4 5.6a5 5 0 0 0-7.1 0L12 6.9l-1.3-1.3a5 5 0 0 0-7.1 7.1L12 21l8.4-8.3a5 5 0 0 0 0-7.1zM3 12.5h4.5l1.8-3 3 6 1.8-3H21","M20.4 5.6a5 5 0 0 0-7.1 0L12 6.9l-1.3-1.3a5 5 0 0 0-7.1 7.1L12 21l8.4-8.3a5 5 0 0 0 0-7.1z"],"tea":["M4 10h12v3.5a6 6 0 0 1-12 0zM16 11h1.5a2.5 2.5 0 0 1 0 5H15M3 21.5h14M8 2.5c-1 1.2 1 2.3 0 4.5M12 2.5c-1 1.2 1 2.3 0 4.5","M4 10h12v3.5a6 6 0 0 1-12 0z"],"run":["M3 16.5h18v1.8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM3 16.5c0-3.2.8-7.5 1-9.5h4.2c.2 1.8 1.8 3 4 3.2l5.5 1.4c2.2.6 3.3 2.2 3.3 4.9M9.2 10.3l1.1-1.6M11.6 11.1l1.1-1.6","M3 16.5h18v1.8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"],"swim":["M14 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M2 18.5c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5M2 22c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5M5 14.5l5-4 2 2.5 4-3","M14 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"],"nosmoke":["M2.5 12a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0M5.3 5.3l13.4 13.4M6.5 12.5h7M15.5 12.5h2M17.5 12.5v2.5M6.5 15h11",""],"tooth":["M7.5 3C5.2 3 3.6 5 4.1 8c.4 2.4 1.5 3.4 2 5.9.5 2.6.6 7.1 2.1 7.1s1.6-3 2.6-5c.5-1 1.9-1 2.4 0 1 2 1.1 5 2.6 5s1.6-4.5 2.1-7.1c.5-2.5 1.6-3.5 2-5.9C20.4 5 18.8 3 16.5 3c-1.9 0-2.7 1-4.5 1S9.4 3 7.5 3z","M7.5 3C5.2 3 3.6 5 4.1 8c.4 2.4 1.5 3.4 2 5.9.5 2.6.6 7.1 2.1 7.1s1.6-3 2.6-5c.5-1 1.9-1 2.4 0 1 2 1.1 5 2.6 5s1.6-4.5 2.1-7.1c.5-2.5 1.6-3.5 2-5.9C20.4 5 18.8 3 16.5 3c-1.9 0-2.7 1-4.5 1S9.4 3 7.5 3z"],"sprout":["M12 21.5V11M12 13c0-4.5 3.2-7 8.5-7 0 4.5-3.2 7-8.5 7zM12 15.5c0-3.4-2.7-5.5-7.5-5.5 0 3.4 2.7 5.5 7.5 5.5zM8 21.5h8","M12 13c0-4.5 3.2-7 8.5-7 0 4.5-3.2 7-8.5 7zM12 15.5c0-3.4-2.7-5.5-7.5-5.5 0 3.4 2.7 5.5 7.5 5.5z"],"grad":["M2 9.5L12 4.5l10 5-10 5zM6 11.5v4.5c3.3 2.5 8.7 2.5 12 0v-4.5M22 9.5v5.5","M2 9.5L12 4.5l10 5-10 5z"],"bulb":["M9 18h6M10 21.5h4M12 2.5a6.5 6.5 0 0 0-4.2 11.4c.8.8 1.2 1.6 1.2 2.6V18h6v-1.5c0-1 .4-1.8 1.2-2.6A6.5 6.5 0 0 0 12 2.5zM12 6.5a2.5 2.5 0 0 0-2.5 2.5","M12 2.5a6.5 6.5 0 0 0-4.2 11.4c.8.8 1.2 1.6 1.2 2.6V18h6v-1.5c0-1 .4-1.8 1.2-2.6A6.5 6.5 0 0 0 12 2.5z"],"laptop":["M4.5 5h15v10.5h-15zM2 19h20M10 8.5l-2 2 2 2M14 8.5l2 2-2 2","M4.5 5h15v10.5h-15z"],"mic":["M9 3h6v9.5a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7M9 7h2.5M9 10h2.5","M9 3h6v9.5a3 3 0 0 1-6 0z"],"video":["M2.5 6.5h12.5v11H2.5zM15 10.5l6.5-3.5v10l-6.5-3.5M5.2 10a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0 -2.6 0","M2.5 6.5h12.5v11H2.5z"],"growth":["M3 20.5h18M5 16.5l4.5-4.5 3.5 3.5 6.5-7.5M15 8h4.5v4.5","M5 16.5l4.5-4.5 3.5 3.5 6.5-7.5v12.5H5z"],"brief":["M3 8h18v12.5H3zM8 8V5h8v3M3 13.5h18M10.5 13.5v2h3v-2","M3 8h18v5.5H3z"],"piggy":["M19 11.5c0-3.6-3.6-6.2-8-6.2S3 7.9 3 11.5c0 2.1 1 3.7 2.5 4.7v3.6h3v-2h5v2h3v-3.6c1-.6 1.8-1.5 2.2-2.6H21v-3.1h-1.8c-.1-.3-.2-.6-.2-1zM9.5 5.5V3.5h3M15.5 10.5h.01","M19 11.5c0-3.6-3.6-6.2-8-6.2S3 7.9 3 11.5c0 2.1 1 3.7 2.5 4.7v3.6h3v-2h5v2h3v-3.6c1-.6 1.8-1.5 2.2-2.6H21v-3.1h-1.8c-.1-.3-.2-.6-.2-1z"],"rocket":["M12 2c3.2 2.2 5 6.2 5 10.5L15 16.5H9l-2-4C7 8.2 8.8 4.2 12 2zM9 16.5L6 19.5v-4.5l1.5-1.5M15 16.5l3 3v-4.5l-1.5-1.5M10.5 19.5L12 22l1.5-2.5M10.2 9.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0","M12 2c3.2 2.2 5 6.2 5 10.5L15 16.5H9l-2-4C7 8.2 8.8 4.2 12 2z"],"trophy":["M8 3h8v6.5a4 4 0 0 1-8 0zM8 5H5a3.5 3.5 0 0 0 3.5 4.5M16 5h3a3.5 3.5 0 0 1-3.5 4.5M12 13.5v3.5M8.5 21.5h7M9.5 17h5v4.5h-5z","M8 3h8v6.5a4 4 0 0 1-8 0z"],"hourglass":["M6 2.5h12M6 21.5h12M7.5 2.5c0 5 4.5 6 4.5 9.5s-4.5 4.5-4.5 9.5M16.5 2.5c0 5-4.5 6-4.5 9.5s4.5 4.5 4.5 9.5","M8.7 20.5c1-2.4 3.3-3.7 3.3-3.7s2.3 1.3 3.3 3.7zM9.2 6.5h5.6C14 8.3 12 9.5 12 9.5S10 8.3 9.2 6.5z"],"quill":["M20.5 3.5C14 4 8.5 8.5 6.5 16.5l-2 5M6.5 16.5c4-.5 7.5-2 10-5M9 12.5c3.5-.5 6.5-2.5 8.5-5.5M20.5 3.5c-.5 4-2 8-4 10.5","M20.5 3.5C14 4 8.5 8.5 6.5 16.5c4-.5 7.5-2 10-5 2-2.5 3.5-6.5 4-8z"],"home":["M3 11l9-7.5 9 7.5M5 9.5V20.5h14V9.5M10 20.5v-6h4v6","M5 9.5L12 3.7l7 5.8v11h-5v-6h-4v6H5z"],"family":["M4.8 5.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M14.8 5.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M10.2 11.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0M3 20v-6a4 4 0 0 1 7-2.6M21 20v-6a4 4 0 0 0-7-2.6M9 20.5v-2.5a3 3 0 0 1 6 0v2.5","M4.8 5.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M14.8 5.5a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M10.2 11.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0"],"gift":["M3 8.5h18v4H3zM5 12.5h14v8.5H5zM12 8.5V21M12 8.5c-2-4.2-6.5-4.2-6.5-1.6 0 1.2 1.5 1.6 6.5 1.6zM12 8.5c2-4.2 6.5-4.2 6.5-1.6 0 1.2-1.5 1.6-6.5 1.6z","M5 12.5h14v8.5H5z"],"sadaqa":["M3 14.5h3l3 3h5a2 2 0 0 0 0-4h-3M6 14.5V21M14 13.5l5-2a2 2 0 0 1 1.5 3.7L14 19.5H9M15 4.8a2.2 2.2 0 0 0-3.2-.3 2.2 2.2 0 0 0-3.2.3c-.9 1.3 0 2.8 3.2 5 3.2-2.2 4.1-3.7 3.2-5z","M15 4.8a2.2 2.2 0 0 0-3.2-.3 2.2 2.2 0 0 0-3.2.3c-.9 1.3 0 2.8 3.2 5 3.2-2.2 4.1-3.7 3.2-5z"],"alarm":["M4.5 13a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0 -15 0M12 9v4l2.5 2M3.5 5.5l3-2.5M20.5 5.5l-3-2.5M6.5 19.5L5 21.5M17.5 19.5l1.5 2","M4.5 13a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0 -15 0"],"summit":["M2 20.5l7-11.5 4 6 3-4 6 9.5zM9 9V2.5l5 2-5 2","M2 20.5l7-11.5 4 6 3-4 6 9.5z"],"gem":["M6.5 3.5h11l4 5.5-10 12-10-12zM1.5 9h21M9.5 3.5L12 9l2.5-5.5M8 9l4 12 4-12","M6.5 3.5h11l4 5.5h-20z"],"crown":["M3 8l4.5 4.5L12 5l4.5 7.5L21 8l-2 11H5zM5 19h14M12 14.5h.01","M3 8l4.5 4.5L12 5l4.5 7.5L21 8l-2 11H5z"],"key":["M3.5 15.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0M11.2 12.3L20.5 3M17 6.5l3 3M14.5 9l2 2","M3.5 15.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0"],"tree":["M12 22v-5M12 2.5l6.5 8h-3.5l4.5 6H4.5l4.5-6H5.5z","M12 2.5l6.5 8h-3.5l4.5 6H4.5l4.5-6H5.5z"],"feather":["M20 4a6 6 0 0 0-8.5 0L5 10.5V19h8.5L20 12.5A6 6 0 0 0 20 4zM16 8L2 22M17.5 15H9","M20 4a6 6 0 0 0-8.5 0L5 10.5V19h8.5L20 12.5A6 6 0 0 0 20 4z"],"infinity":["M12 12c-2-2.7-3.8-4-5.5-4a4 4 0 0 0 0 8c1.7 0 3.5-1.3 5.5-4zM12 12c2 2.7 3.8 4 5.5 4a4 4 0 0 0 0-8c-1.7 0-3.5 1.3-5.5 4z",""]};
 const PRO_COLLECTIONS = [{"id":"sunna","name":"Сунна","icons":["misbaha","crescent","kaaba","sajjada","fanous","minaret","dua","dates","fajr","tahajjud","qibla","rehal"]},{"id":"health","name":"Здоровье","icons":["apple","kettlebell","bike","pulse","tea","run","swim","nosmoke","tooth","sprout"]},{"id":"mind","name":"Знания и дело","icons":["grad","bulb","laptop","mic","video","growth","brief","piggy","rocket","trophy","hourglass","quill"]},{"id":"heart","name":"Дом и сердце","icons":["home","family","gift","sadaqa","alarm","summit","gem","crown","key","tree","feather","infinity"]}];
 const ICF = {};
@@ -530,6 +566,8 @@ async function load() {
     let v; try { v = JSON.parse(all[key]); } catch (e) { continue; }
     if (key === 'habits' && Array.isArray(v)) S.habits = v;
     else if (key === 'rem' && v && typeof v === 'object') UI.rem = v;
+    else if (key === 'pro' && v && typeof v === 'object') UI.pro = v;
+    else if (key === 'lt' && typeof v === 'number') UI.lt = v;
     else if (key === 'ui' && v && typeof v === 'object') { if (ACCENTS.includes(v.accent)) UI.accent = v.accent; UI.intro = !!v.intro; if (CURS.includes(v.cur)) UI.cur = v.cur; }
     else if (key === 'pls' && Array.isArray(v)) P.series = v;
     else if (/^pl_\d{4}_\d{2}_\d$/.test(key) && Array.isArray(v)) { const ym = key.slice(3, 10).replace('_', '-'); (P.parts ||= {})[ym] = P.parts[ym] || []; P.parts[ym][+key.slice(11)] = v; }
@@ -547,6 +585,7 @@ async function load() {
   for (const ym in (P.parts || {})) P.items[ym] = P.parts[ym].filter(Boolean).flat();
   delete P.parts;
   for (const key in all) if (/^[dw]_/.test(key) && !all[key].includes('"v":2')) markDirty(key);
+  if (!all.lt) { UI.lt = Date.now(); Store.set('lt', String(UI.lt)); }
   if (!all.habits) {
     const start = TK();
     S.habits = DEFAULTS.map(([name, icon, type]) => ({ id: uid(), name, icon, type, goal: type === 'd' ? 31 : 4, created: start }));
@@ -693,6 +732,9 @@ function renderToday() {
     const sub = h.type === 'd'
       ? `${st} ${plural(st, 'день', 'дня', 'дней')} · ${monthCount(h, d.getFullYear(), d.getMonth())}/${Math.min(h.goal, dim(d.getFullYear(), d.getMonth()))} за месяц`
       : `${st} ${plural(st, 'неделя', 'недели', 'недель')} подряд`;
+    if (habitLocked(h)) return `<div class="swr" data-del="h:${h.id}">${swBtn(h.name)}<button class="card locked" data-act="paywall" data-r="habits" aria-label="${esc(h.name)} — доступно в Pro">
+      <span class="ib">${ico(hIcon(h))}</span><span class="tx"><b>${esc(h.name)}</b><small style="color:var(--mut)">${ico('crown', 'color:var(--a)')}<span>доступно в Pro</span></small></span>
+      <span class="chk" style="border-style:dashed">${ico('crown', 'width:18px;height:18px;opacity:1;transform:none;stroke-width:1.8;color:var(--mut)')}</span></button></div>`;
     return `<div class="swr" data-del="h:${h.id}">${swBtn(h.name)}<button class="card ${done ? 'on' : ''}" data-act="tog" data-id="${h.id}" data-k="${key}" aria-pressed="${done}" aria-label="${done ? 'Снять отметку' : 'Отметить'}: ${esc(h.name)}">
       <span class="ib">${ico(hIcon(h))}</span>
       <span class="tx"><b>${esc(h.name)}</b><small>${ico('flame')}<span>${sub}</span></small></span>
@@ -710,11 +752,12 @@ function renderToday() {
       <div style="flex:1;min-width:0"><h3 class="disp">${h1}</h3><p>${h2}</p></div></div>
       <div class="hpills"><span class="pill">${ico('flame', 'color:var(--fire)')}серия ${fire}</span><span class="pill">${ico('star', 'color:var(--a)')}идеальных дней: ${ms.perfect}</span></div>
     </div>
-    ${k === TK() ? todayPlanBlock() : ''}
+    ${proBanner()}
+    ${k === TK() && proActive() ? todayPlanBlock() : ''}
     ${hs.length ? `<div class="sec"><div class="sh"><h2>Ежедневные</h2><span>нажми, чтобы отметить</span></div><div class="list two">${hs.map(h => card(h, k)).join('')}</div></div>` : ''}
     ${ws.length ? `<div class="sec"><div class="sh"><h2>На этой неделе</h2><span>${range}</span></div><div class="list two">${ws.map(h => card(h, dk(mon))).join('')}</div></div>` : ''}
     ${!S.habits.length ? `<div class="glass empty"><b>Пока нет привычек</b><p>Добавь первую, и цепочка начнётся сегодня.</p><button class="btn" data-act="add">Добавить привычку</button></div>` : ''}
-    ${apiOn && !(UI.rem && UI.rem.set) && S.habits.length ? `<div class="promo"><span class="ib">${ico('bell')}</span><span class="tx"><b>Напоминание после асра</b><small style="color:var(--mut)">бот напишет, если что-то не отмечено</small></span><button class="btn-s" data-act="rem">Включить</button></div>` : ''}
+    ${apiOn && proActive() && !(UI.rem && UI.rem.set) && S.habits.length ? `<div class="promo"><span class="ib">${ico('bell')}</span><span class="tx"><b>Напоминание после асра</b><small style="color:var(--mut)">бот напишет, если что-то не отмечено</small></span><button class="btn-s" data-act="rem">Включить</button></div>` : ''}
   </div>`;
   bindWeekSwipe();
 }
@@ -773,6 +816,7 @@ function renderMonth() {
 }
 
 function renderYear() {
+  if (!proActive()) return renderLocked('year');
   setGlow('right:-160px;top:120px');
   const y = UI.year, tk = TK(), curY = today().getFullYear();
   const months = Array.from({ length: 12 }, (_, m) => monthStats(y, m));
@@ -822,6 +866,7 @@ function renderHabits() {
     <span class="handle" data-drag="${h.id}" role="button" tabindex="0" aria-label="Перетащить: ${esc(h.name)}">${ico('grip')}</span></div></div></div>`;
   view.innerHTML = `<div class="fade">
     <h1 class="h1 disp">Привычки</h1>
+    ${proCard()}
     <button class="addbtn" data-act="add"><span>ДОБАВИТЬ ПРИВЫЧКУ</span><span>${ico('plus', 'stroke-width:2.2')}</span></button>
     <button class="card" data-act="rem" style="margin-top:12px"><span class="ib" style="color:var(--a)">${ico('bell')}</span><span class="tx"><b>Напоминания</b><small style="color:var(--mut)">${apiOn ? remStatus() : 'работают в Телеграме'}</small></span><span style="width:40px;display:grid;place-items:center;color:var(--mut)">${ico('right', 'width:20px;height:20px;stroke-width:2')}</span></button>
     <div class="filters" role="group" aria-label="Фильтр">
@@ -838,7 +883,7 @@ function renderHabits() {
 
 const RENDER = { today: renderToday, plan: renderPlan, month: renderMonth, year: renderYear, habits: renderHabits };
 const render = () => RENDER[UI.tab]();
-function applyAccent() { document.documentElement.style.setProperty('--a', UI.accent); }
+function applyAccent() { document.documentElement.style.setProperty('--a', proActive() ? UI.accent : ACCENTS[0]); }
 function setTab(t) {
   UI.tab = t;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
@@ -892,7 +937,7 @@ function openSheet(h) {
   if (draft.isNew) setTimeout(() => sheet.querySelector('#nm')?.focus(), 280);
 }
 function closeSheet() {
-  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null; rdraft = null; pdraft = null;
+  sheet.classList.remove('on'); scrim.classList.remove('on'); draft = null; rdraft = null; pdraft = null; paywallOpen = false;
   try { if (tg && tg.BackButton) { tg.BackButton.offClick(closeSheet); tg.BackButton.hide(); } } catch (e) {}
 }
 function drawSheet() {
@@ -902,8 +947,8 @@ function drawSheet() {
     ${t.isNew ? `<div class="field"><span class="flabel">Идеи</span><div class="sugg">${SUGGEST.map(([n, i]) => `<button data-act="sug" data-n="${esc(n)}" data-i="${i}">${ico(i)}${esc(n)}</button>`).join('')}</div></div>` : ''}
     <div class="field"><span class="flabel">Иконка</span>
       <div class="ctabs" role="tablist">${COLLECTIONS.map(c => `<button role="tab" class="${c.id === UI.coll ? 'on' : ''}" data-act="coll" data-c="${c.id}" aria-selected="${c.id === UI.coll}">${esc(c.name)}${c.pro ? `<span class="pro">${ico('crown')}PRO</span>` : ''}</button>`).join('')}</div>
-      <div class="icons">${(COLLECTIONS.find(c => c.id === UI.coll).icons || PICK).map(i => `<button class="${i === t.icon ? 'on' : ''} ${PRO_LOCKED && isProIcon(i) ? 'lock' : ''}" data-act="ico" data-i="${i}" aria-label="Иконка ${i}">${ico(i)}</button>`).join('')}</div>
-      ${UI.coll !== 'base' ? `<div class="cnote">${ico('crown', 'width:14px;height:14px;color:var(--a)')}${PRO_LOCKED ? 'Коллекция доступна в Qawiyy Pro' : 'Коллекция Qawiyy Pro — сейчас открыта для всех'}</div>` : ''}</div>
+      <div class="icons">${(COLLECTIONS.find(c => c.id === UI.coll).icons || PICK).map(i => `<button class="${i === t.icon ? 'on' : ''} ${!proActive() && isProIcon(i) ? 'lock' : ''}" data-act="ico" data-i="${i}" aria-label="Иконка ${i}">${ico(i)}</button>`).join('')}</div>
+      ${UI.coll !== 'base' ? `<div class="cnote">${ico('crown', 'width:14px;height:14px;color:var(--a)')}${proActive() ? (proState().paid ? 'Коллекция Qawiyy Pro' : 'Коллекция Qawiyy Pro — открыта на пробный период') : 'Коллекция доступна в Qawiyy Pro'}</div>` : ''}</div>
     <div class="field"><span class="flabel">Как часто</span><div class="seg"><button class="${t.type === 'd' ? 'on' : ''}" data-act="typ" data-t="d">Каждый день</button><button class="${t.type === 'w' ? 'on' : ''}" data-act="typ" data-t="w">Раз в неделю</button></div></div>
     ${t.type === 'd' ? `<div class="field"><span class="flabel">Цель на месяц</span><div class="stepper"><button data-act="goal" data-n="-1" aria-label="Меньше">−</button><b class="disp">${t.goal}</b><button data-act="goal" data-n="1" aria-label="Больше">+</button><span>${plural(t.goal, 'день', 'дня', 'дней')} в месяц${t.goal >= 31 ? ' (каждый день)' : ''}</span></div></div>` : ''}
     <button class="btn" data-act="save">Сохранить</button>
@@ -942,7 +987,12 @@ async function loadRemSettings() {
   if (!apiOn) return;
   try {
     const r = await api('/api/me', {});
-    if (r && r.ok && r.settings) { UI.rem = r.settings; UI.remInfo = { asr: r.asr, remindAt: r.remindAt }; Store.set('rem', JSON.stringify(UI.rem)); render(); }
+    if (r && r.ok && r.settings) {
+      const wasPaid = proState().paid;
+      UI.rem = r.settings; UI.remInfo = { asr: r.asr, remindAt: r.remindAt }; Store.set('rem', JSON.stringify(UI.rem));
+      if (r.pro) { UI.pro = r.pro; Store.set('pro', JSON.stringify(r.pro)); if (!wasPaid && r.pro.paid) { haptic('success'); toast('Qawiyy Pro активирован 💎'); if (paywallOpen) closeSheet(); } }
+      applyAccent(); render();
+    }
   } catch (e) {}
 }
 
@@ -1112,6 +1162,7 @@ function planCard(ym, it) {
     <button class="chk" data-act="pdone" data-ym="${ym}" data-id="${it.id}" aria-pressed="${!!it.done}" aria-label="${it.done ? 'Снять отметку' : it.k === 'p' ? 'Отметить оплату' : 'Отметить'}: ${esc(it.t)}">${ico('ok')}</button></div></div>`;
 }
 function renderPlan() {
+  if (!proActive()) return renderLocked('plan');
   setGlow('left:-120px;top:-120px');
   const [y, m] = UI.pym, ym = ymKey(y, m), isCur = ym === curYM();
   materialize(ym);
@@ -1276,6 +1327,69 @@ function syncPlan() {
 }
 
 
+/* ---------- Экран Qawiyy Pro ---------- */
+let paywallOpen = false;
+const PRO_FEATURES = [
+  ['list', 'Без ограничений', 'сколько угодно привычек'],
+  ['calendar', '«План» на месяц', 'встречи, оплаты, дела и цели'],
+  ['bell', 'Напоминания от бота', 'после асра и по каждому пункту плана'],
+  ['growth', 'Статистика года', 'карта года и прогресс по месяцам'],
+  ['crown', 'Коллекции иконок', 'Сунна, Здоровье, Знания, Дом'],
+  ['sparkle', 'Цвета оформления', 'четыре акцентных цвета']
+];
+const REASON = { habits: `В бесплатной версии — до ${FREE_HABITS} привычек`, plan: '«План» доступен в Qawiyy Pro', year: 'Статистика года — в Qawiyy Pro', reminders: 'Напоминания — в Qawiyy Pro', icons: 'Эта коллекция иконок — в Qawiyy Pro', colors: 'Цвета оформления — в Qawiyy Pro' };
+function proCard() {
+  const st = proState();
+  if (st.paid) { const d = new Date(st.proUntil); return `<div class="procard paid"><span class="ib">${ico('crown')}</span><span class="tx"><b>Qawiyy Pro</b><small>действует до ${d.getDate()} ${M_GEN[d.getMonth()]} ${d.getFullYear()}</small></span><button class="btn-s" data-act="paywall" data-r="">Продлить</button></div>`; }
+  if (st.trial) return `<div class="procard"><span class="ib">${ico('crown')}</span><span class="tx"><b>Пробный Pro</b><small>осталось ${daysLeft(st.trialEnds)} ${plural(daysLeft(st.trialEnds), 'день', 'дня', 'дней')} — всё открыто</small></span><button class="btn-s" data-act="paywall" data-r="">Оформить</button></div>`;
+  return `<div class="procard free"><span class="ib">${ico('crown')}</span><span class="tx"><b>Бесплатная версия</b><small>${FREE_HABITS} привычки, без «Плана» и напоминаний</small></span><button class="btn-s" data-act="paywall" data-r="">Pro</button></div>`;
+}
+function proBanner() {
+  const st = proState();
+  if (st.paid) return '';
+  if (st.trial && daysLeft(st.trialEnds) > 3) return '';
+  const txt = st.trial ? `Пробный Pro: ${daysLeft(st.trialEnds) <= 1 ? 'последний день' : 'осталось ' + daysLeft(st.trialEnds) + ' ' + plural(daysLeft(st.trialEnds), 'день', 'дня', 'дней')}` : 'Пробный период закончился';
+  return `<button class="procard" data-act="paywall" data-r="" style="margin-top:18px;width:100%;text-align:left"><span class="ib">${ico('crown')}</span><span class="tx"><b>${txt}</b><small>${st.trial ? 'Оформи Pro, чтобы сохранить всё открытым' : 'Открой «План», напоминания и все привычки'}</small></span><span class="btn-s" style="display:grid;place-items:center">Pro</span></button>`;
+}
+function renderLocked(what) {
+  setGlow('right:-120px;top:-140px');
+  const t = what === 'plan' ? ['«План» на месяц', 'Встречи, оплаты, дела и цели месяца. У каждого пункта свои напоминания — бот напишет за 3, 2, 1 день и в сам день.', 'calendar']
+    : ['Статистика года', 'Карта года по дням, прогресс по месяцам, лучшие серии и идеальные дни за весь год.', 'growth'];
+  view.innerHTML = `<div class="fade"><div class="hero yhero" style="margin-top:22px;text-align:center;padding:32px 22px">
+    <div class="ib" style="margin:0 auto;width:64px;height:64px;border-radius:20px;background:var(--a);color:var(--ink)">${ico(t[2], 'width:30px;height:30px')}</div>
+    <h2 class="disp" style="margin:18px 0 8px;font-size:22px">${t[0]}</h2><p style="margin:0 auto;max-width:300px">${t[1]}</p>
+    <div class="pill" style="margin-top:16px;background:rgba(10,11,8,.6)">${ico('crown', 'color:var(--a)')}Qawiyy Pro</div>
+    <button class="btn" data-act="paywall" data-r="${what}" style="margin-top:22px">Открыть Pro</button></div></div>`;
+}
+function openPaywall(reason) {
+  draft = null; rdraft = null; pdraft = null; paywallOpen = true;
+  UI.payReason = reason || ''; UI.payPlan = UI.payPlan || 'year';
+  drawPaywall(); showSheet();
+}
+function drawPaywall() {
+  const st = proState(), ready = PAY.year.url || PAY.month.url;
+  const plan = (k, title) => { const p = PAY[k]; return `<button class="plancard ${UI.payPlan === k ? 'on' : ''}" data-act="pplan" data-v="${k}" aria-pressed="${UI.payPlan === k}">
+      <span class="rad"></span><span class="tx"><b>${title}</b><small>${p.per || (k === 'year' ? 'один платёж на 12 месяцев' : 'на 30 дней')}</small></span>
+      <span class="pr">${p.price || '—'}${p.note ? `<i>${p.note}</i>` : ''}</span></button>`; };
+  sheet.innerHTML = `<div class="grab"></div>
+    <div style="text-align:center"><div class="ib" style="margin:4px auto 0;width:60px;height:60px;border-radius:20px;background:var(--a);color:var(--ink)">${ico('crown', 'width:30px;height:30px')}</div>
+    <h3 class="disp" style="margin:14px 0 4px;font-size:24px">Qawiyy Pro</h3>
+    <p class="lead" style="margin:0 0 6px">${UI.payReason && REASON[UI.payReason] ? REASON[UI.payReason] : 'Все возможности для твоих малых шагов'}</p>
+    ${st.trial ? `<div class="info" style="margin:6px auto 4px">${ico('star', 'width:16px;height:16px')}Пробный период: осталось ${daysLeft(st.trialEnds)} ${plural(daysLeft(st.trialEnds), 'день', 'дня', 'дней')}</div>` : ''}
+    ${st.paid ? `<div class="info" style="margin:6px auto 4px">${ico('ok', 'width:16px;height:16px')}Pro уже активен — можно продлить</div>` : ''}</div>
+    <div class="feats">${PRO_FEATURES.map(([i, a, b]) => `<div><span class="ib">${ico(i)}</span><span class="tx"><b>${a}</b><small style="color:var(--mut)">${b}</small></span></div>`).join('')}</div>
+    <div class="plans">${plan('year', 'Год')}${plan('month', 'Месяц')}</div>
+    <button class="btn" data-act="ppay" ${ready && inTg ? '' : 'disabled'}>${ready ? 'Оплатить' : 'Оплата скоро'}</button>
+    <p class="note" style="margin-top:12px">${inTg ? 'Оплата через Tribute — картой любого банка или криптовалютой. Pro включится автоматически, и бот пришлёт подтверждение.' : 'Оплата доступна, когда приложение открыто в Телеграме через @maliyshagbot.'}</p>`;
+}
+function payNow() {
+  const p = PAY[UI.payPlan] || PAY.year; if (!p.url) { toast('Оплата скоро появится'); return; }
+  haptic('light');
+  try { if (inTg && /^https:\/\/(t\.me|telegram\.me)\//.test(p.url) && tg.openTelegramLink) tg.openTelegramLink(p.url); else if (inTg && tg.openLink) tg.openLink(p.url); else window.open(p.url, '_blank'); } catch (e) { window.open(p.url, '_blank'); }
+  // после оплаты проверяем статус несколько раз
+  let n = 0; const iv = setInterval(() => { if (++n > 12 || proState().paid) return clearInterval(iv); loadRemSettings(); }, 10000);
+}
+
 /* ---------- Удаление свайпом влево (как будильник в iPhone) ---------- */
 const SW_OPEN = 84;
 let swOpen = null, swSt = null, swSuppress = false;
@@ -1354,6 +1468,7 @@ document.addEventListener('click', async e => {
   const a = b.dataset.act, H = id => S.habits.find(h => h.id === id);
   if (a === 'tog') {
     const h = H(b.dataset.id), k = b.dataset.k; if (!h || k > TK()) return;
+    if (habitLocked(h)) { openPaywall('habits'); return; }
     const was = h.type === 'd' ? dayStat(k) : null;
     const on = toggle(h, k); haptic(on ? 'light' : 'select');
     const now = h.type === 'd' ? dayStat(k) : null;
@@ -1367,15 +1482,18 @@ document.addEventListener('click', async e => {
   else if (a === 'yr') { UI.year += +b.dataset.n; haptic('select'); render(); }
   else if (a === 'flt') { UI.filter = b.dataset.f; haptic('select'); render(); }
   else if (['padd', 'pedit', 'pdone', 'pmon', 'pcur', 'pk', 'prem', 'prd', 'prep', 'psave', 'pdel'].includes(a)) { await handlePlan(a, b); }
-  else if (a === 'acc') { UI.accent = b.dataset.c; applyAccent(); markDirty('ui'); haptic('select'); render(); }
-  else if (a === 'add') { if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
-  else if (a === 'rem') openRem();
+  else if (a === 'acc') { if (!proActive() && b.dataset.c !== ACCENTS[0]) { openPaywall('colors'); return; } UI.accent = b.dataset.c; applyAccent(); markDirty('ui'); haptic('select'); render(); }
+  else if (a === 'add') { if (!proActive() && S.habits.length >= FREE_HABITS) { openPaywall('habits'); return; } if (S.habits.length >= MAX_HABITS) { toast('Максимум ' + MAX_HABITS + ' привычек'); return; } openSheet(null); }
+  else if (a === 'paywall') openPaywall(b.dataset.r);
+  else if (a === 'pplan') { UI.payPlan = b.dataset.v; haptic('select'); drawPaywall(); }
+  else if (a === 'ppay') payNow();
+  else if (a === 'rem') { if (!proActive()) { openPaywall('reminders'); return; } openRem(); }
   else if (a.startsWith('r-')) { if (rdraft) await handleRem(a, b); }
   else if (a === 'edit') openSheet(H(b.dataset.id));
   else if (a === 'close') closeSheet();
   else if (draft) {
     if (a === 'sug') { draft.name = b.dataset.n; draft.icon = b.dataset.i; drawSheet(); }
-    else if (a === 'ico') { if (PRO_LOCKED && isProIcon(b.dataset.i)) { toast('Коллекция доступна в Qawiyy Pro'); return; } draft.icon = b.dataset.i; drawSheet(); }
+    else if (a === 'ico') { if (!proActive() && isProIcon(b.dataset.i)) { openPaywall('icons'); return; } draft.icon = b.dataset.i; drawSheet(); }
     else if (a === 'coll') { UI.coll = b.dataset.c; haptic('select'); const sc = sheet.scrollTop; drawSheet(); sheet.scrollTop = sc; }
     else if (a === 'typ') { draft.type = b.dataset.t; draft.goal = draft.type === 'd' ? 31 : 4; drawSheet(); }
     else if (a === 'goal') { draft.goal = Math.max(1, Math.min(31, draft.goal + +b.dataset.n)); drawSheet(); }
@@ -1442,7 +1560,7 @@ load().then(() => {
   syncPlan();
   flush(); render(); syncNow(); loadRemSettings();
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (UI.tab === 'today') UI.day = TK(); render(); scheduleSync(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (UI.tab === 'today') UI.day = TK(); render(); scheduleSync(); loadRemSettings(); } });
 window.__ms = { S, P, UI, render, monthStats, dayStat, streak, toggle, TK, setTab, remindAt };
 })();
 </script>

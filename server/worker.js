@@ -21,6 +21,7 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     try {
       if (url.pathname === '/tg' && req.method === 'POST') return await onTelegram(req, env);
+      if (url.pathname === '/tribute' && req.method === 'POST') return await onTribute(req, env);
       if (url.pathname.startsWith('/api/') && req.method === 'POST') return await onApi(url.pathname, req, env);
       if (url.pathname === '/' || url.pathname === '/health') return json({ ok: true, service: 'maliyshag' });
       return json({ ok: false, error: 'not_found' }, 404);
@@ -34,7 +35,10 @@ export default {
     const now = Date.now();
     ctx.waitUntil((async () => {
       const used = await runPlanReminders(env, now).catch(e => { console.error('plan cron error', e && e.stack || e); return 0; });
-      if (new Date(now).getUTCMinutes() % 15 === 0) await runReminders(env, now, MAX_SENDS_PER_RUN - used).catch(e => console.error('cron error', e && e.stack || e));
+      if (new Date(now).getUTCMinutes() % 15 === 0) {
+        const u2 = await runReminders(env, now, MAX_SENDS_PER_RUN - used).catch(e => { console.error('cron error', e && e.stack || e); return 0; });
+        await runProNotices(env, now, Math.max(0, MAX_SENDS_PER_RUN - used - (u2 || 0) - 2)).catch(e => console.error('pro notice error', e && e.stack || e));
+      }
     })());
   }
 };
@@ -191,7 +195,12 @@ async function onTelegram(req, env) {
       const rem = await env.DB.prepare("SELECT COUNT(*) n FROM users WHERE mode!='off' AND blocked=0 AND tz IS NOT NULL").first();
       const blk = await env.DB.prepare('SELECT COUNT(*) n FROM users WHERE blocked=1').first();
       const fresh = await q('SELECT COUNT(*) n FROM users WHERE created_at > ? - 7*86400000');
-      reply = { text: `📊 <b>Qawiyy — статистика</b>\n\nВсего пользователей: <b>${all.n}</b>\nНовых за 7 дней: ${fresh.n}\n\nОткрывали приложение:\n• за сутки: ${d1.n}\n• за 7 дней: ${d7.n}\n• за 30 дней: ${d30.n}\n\nНапоминания включены: ${rem.n}\nЗаблокировали бота: ${blk.n}` };
+      const proN = await q('SELECT COUNT(*) n FROM pro WHERE pro_until > ?');
+      const trialN = await env.DB.prepare(`SELECT COUNT(*) n FROM pro WHERE trial_start > ? - ${TRIAL_DAYS} * 86400000 AND (pro_until IS NULL OR pro_until <= ?)`).bind(now, now).first();
+      const buys = await env.DB.prepare("SELECT currency, COUNT(*) n, SUM(amount) s FROM purchases WHERE kind='buy' GROUP BY currency").all();
+      const buys30 = await env.DB.prepare("SELECT COUNT(*) n FROM purchases WHERE kind='buy' AND created_at > ?").bind(now - 30 * 86400000).first();
+      const money = (buys.results || []).map(b => `${(b.s || 0) / 100} ${String(b.currency || '').toUpperCase()} (${b.n})`).join(', ') || 'пока нет';
+      reply = { text: `📊 <b>Qawiyy — статистика</b>\n\nВсего пользователей: <b>${all.n}</b>\nНовых за 7 дней: ${fresh.n}\n\nОткрывали приложение:\n• за сутки: ${d1.n}\n• за 7 дней: ${d7.n}\n• за 30 дней: ${d30.n}\n\n💎 Pro сейчас: <b>${proN.n}</b>\nНа пробном периоде: ${trialN.n}\nПокупок за 30 дней: ${buys30.n}\nВыручка (до комиссии): ${money}\n\nНапоминания включены: ${rem.n}\nЗаблокировали бота: ${blk.n}` };
     }
   } else {
     reply = { text: 'Нажми кнопку ниже, чтобы открыть трекер.\n\nКоманды: /on — включить напоминания, /stop — выключить.', reply_markup: appButton(env) };
@@ -271,7 +280,7 @@ async function settingsOut(env, id, now) {
     if (u.lat != null && u.lon != null) asr = asrLocalHM(lp.y, lp.m, lp.d, u.lat, u.lon, u.asr_factor || 1, u.tz);
     remindAt = targetHM(u, lp);
   }
-  return { settings: { mode: u.mode, rtime: u.rtime, lat: u.lat, lon: u.lon, city: u.city, asr_factor: u.asr_factor, address: u.address, set: !!u.settings_set }, asr, remindAt, blocked: !!u.blocked };
+  return { settings: { mode: u.mode, rtime: u.rtime, lat: u.lat, lon: u.lon, city: u.city, asr_factor: u.asr_factor, address: u.address, set: !!u.settings_set }, asr, remindAt, blocked: !!u.blocked, pro: await getPro(env, id, now) };
 }
 
 /* ---------------- Напоминания ---------------- */
@@ -320,7 +329,8 @@ export function composeMessage(u, kind, row) {
 }
 
 export async function runReminders(env, now, budget = MAX_SENDS_PER_RUN) {
-  const { results } = await env.DB.prepare("SELECT * FROM users WHERE mode != 'off' AND blocked = 0 AND tz IS NOT NULL").all();
+  const { results } = await env.DB.prepare(`SELECT u.* FROM users u LEFT JOIN pro p ON p.user_id = u.id WHERE u.mode != 'off' AND u.blocked = 0 AND u.tz IS NOT NULL
+    AND (p.user_id IS NULL OR p.pro_until > ?1 OR p.trial_start > ?1 - ${TRIAL_DAYS} * 86400000)`).bind(now).all();
   let sends = 0;
   for (const u of results || []) {
     if (sends >= budget) break;
@@ -369,12 +379,14 @@ export function composePlanMessage(r) {
   return `✅ <b>Дело по плану</b>\n\n${t}\n${w}`;
 }
 export async function runPlanReminders(env, now) {
-  const { results } = await env.DB.prepare('SELECT p.*, u.blocked FROM plan p LEFT JOIN users u ON u.id = p.user_id WHERE p.sent = 0 AND p.remind_at <= ? AND p.remind_at > ? ORDER BY p.remind_at LIMIT ?')
+  const { results } = await env.DB.prepare(`SELECT p.*, u.blocked, (pr.user_id IS NULL OR pr.pro_until > ?1 OR pr.trial_start > ?1 - ${TRIAL_DAYS} * 86400000) AS pro_ok
+    FROM plan p LEFT JOIN users u ON u.id = p.user_id LEFT JOIN pro pr ON pr.user_id = p.user_id
+    WHERE p.sent = 0 AND p.remind_at <= ?1 AND p.remind_at > ?2 ORDER BY p.remind_at LIMIT ?3`)
     .bind(now, now - 6 * 3600000, PLAN_MAX_PER_RUN).all();
   let sends = 0;
   for (const r of results || []) {
     const mark = () => env.DB.prepare('UPDATE plan SET sent=1 WHERE user_id=? AND item_id=? AND remind_at=?').bind(r.user_id, r.item_id, r.remind_at).run();
-    if (r.blocked) { await mark(); continue; }
+    if (r.blocked || !r.pro_ok) { await mark(); continue; }
     const res = await tgCall(env, 'sendMessage', { chat_id: r.user_id, text: composePlanMessage(r), parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: 'Открыть план', web_app: { url: env.APP_URL + '#plan' } }]] } });
     sends++;
     if (res.status === 0 || res.status === 429) break; // повторим через минуту
@@ -382,4 +394,72 @@ export async function runPlanReminders(env, now) {
     await mark();
   }
   return sends;
+}
+
+/* ---------------- Qawiyy Pro: пробный период и оплата через Tribute ---------------- */
+const TRIAL_DAYS = 15;
+export async function getPro(env, id, now) {
+  await env.DB.prepare('INSERT OR IGNORE INTO pro (user_id, trial_start, pro_until, updated_at) VALUES (?, ?, 0, ?)').bind(id, now, now).run();
+  const r = await env.DB.prepare('SELECT * FROM pro WHERE user_id=?').bind(id).first();
+  const trialEnds = r.trial_start + TRIAL_DAYS * 86400000, paid = (r.pro_until || 0) > now;
+  return { active: paid || now < trialEnds, paid, trial: !paid && now < trialEnds, trialEnds, proUntil: r.pro_until || 0, plan: r.plan || null };
+}
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+async function tributeSigOk(raw, sig, key) {
+  if (!sig || !key) return false;
+  const mac = await hmac(enc.encode(key), raw);
+  const h = hex(mac), b = b64(mac), s = sig.trim().replace(/^sha256=/, '');
+  return s.toLowerCase() === h || s === b;
+}
+const daysFor = (env, productId) => {
+  const id = String(productId || '');
+  if (id && id === String(env.TRIBUTE_YEAR_ID || '')) return [366, 'year'];
+  if (id && id === String(env.TRIBUTE_MONTH_ID || '')) return [31, 'month'];
+  return [31, 'month']; // неизвестный продукт: считаем месяцем и пишем в лог
+};
+async function onTribute(req, env) {
+  const raw = await req.text();
+  if (!(await tributeSigOk(raw, req.headers.get('trbt-signature'), env.TRIBUTE_API_KEY))) { console.warn('tribute: bad signature'); return json({ ok: false }, 401); }
+  let ev; try { ev = JSON.parse(raw); } catch (e) { return json({ ok: false }, 400); }
+  const name = String(ev.name || ''), pl = ev.payload || {}, tgId = Number(pl.telegram_user_id), now = Date.now();
+  const isBuy = /^(new_digital_product|newDigitalProduct)$/.test(name), isRefund = /^(digital_product_refund|digitalProductRefund)$/.test(name);
+  if (!tgId || (!isBuy && !isRefund)) { console.log('tribute: ignored event', name); return json({ ok: true }); }
+  const [days, plan] = daysFor(env, pl.product_id);
+  if (String(pl.product_id || '') && ![String(env.TRIBUTE_YEAR_ID || ''), String(env.TRIBUTE_MONTH_ID || '')].includes(String(pl.product_id))) console.warn('tribute: unknown product', pl.product_id);
+  const key = (await sha256hex([name, tgId, pl.product_id, pl.purchase_id || pl.id || '', ev.created_at || '', pl.amount || ''].join('|'))).slice(0, 40);
+  const ins = await env.DB.prepare('INSERT OR IGNORE INTO purchases (id, user_id, product_id, plan, kind, amount, currency, created_at, raw) VALUES (?,?,?,?,?,?,?,?,?)')
+    .bind(key, tgId, String(pl.product_id || ''), plan, isBuy ? 'buy' : 'refund', Number(pl.amount) || 0, String(pl.currency || ''), now, raw.slice(0, 2000)).run();
+  if (!ins.meta || !ins.meta.changes) return json({ ok: true, duplicate: true }); // повторная доставка
+  await env.DB.prepare('INSERT OR IGNORE INTO pro (user_id, trial_start, pro_until, updated_at) VALUES (?, ?, 0, ?)').bind(tgId, now, now).run();
+  const cur = await env.DB.prepare('SELECT pro_until FROM pro WHERE user_id=?').bind(tgId).first();
+  let until;
+  if (isBuy) until = Math.max(now, cur.pro_until || 0) + days * 86400000;
+  else until = Math.max(now, (cur.pro_until || 0) - days * 86400000);
+  await env.DB.prepare('UPDATE pro SET pro_until=?, plan=?, note=NULL, updated_at=? WHERE user_id=?').bind(until, isBuy ? plan : null, now, tgId).run();
+  const d = new Date(until), dateText = `${d.getUTCDate()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
+  await tgCall(env, 'sendMessage', isBuy
+    ? { chat_id: tgId, parse_mode: 'HTML', text: `💎 <b>Qawiyy Pro активирован!</b>\n\nСпасибо за поддержку 🤍 Pro действует до <b>${dateText}</b>.\nОткрыт «План», напоминания, статистика года и все коллекции иконок.`, reply_markup: appButton(env) }
+    : { chat_id: tgId, text: 'Оплата Qawiyy Pro возвращена. Pro отключён.' });
+  return json({ ok: true });
+}
+export async function runProNotices(env, now, budget) {
+  if (budget <= 0) return 0;
+  const day = 86400000;
+  const { results } = await env.DB.prepare(`SELECT p.*, u.blocked FROM pro p JOIN users u ON u.id = p.user_id WHERE u.blocked = 0 AND (
+      (p.pro_until > ?1 AND p.pro_until < ?1 + 3 * ${day} AND COALESCE(p.note, '') NOT LIKE 'end3:%') OR
+      ((p.pro_until IS NULL OR p.pro_until <= ?1) AND p.trial_start + ${TRIAL_DAYS} * ${day} > ?1 AND p.trial_start + ${TRIAL_DAYS} * ${day} < ?1 + ${day} AND COALESCE(p.note, '') != 'trial1')
+    ) LIMIT ?2`).bind(now, budget).all();
+  let n = 0;
+  for (const p of results || []) {
+    const paid = (p.pro_until || 0) > now;
+    const text = paid
+      ? '⏳ <b>Qawiyy Pro заканчивается через 3 дня.</b>\n\nПродли, чтобы не потерять «План», напоминания и статистику.'
+      : '⏳ <b>Пробный Pro заканчивается завтра.</b>\n\nПосле этого останется бесплатная версия: 4 привычки, без «Плана» и напоминаний. Оформи Pro в приложении, чтобы ничего не потерять.';
+    const r = await tgCall(env, 'sendMessage', { chat_id: p.user_id, text, parse_mode: 'HTML', reply_markup: appButton(env, 'Открыть Qawiyy') });
+    n++;
+    if (r.status === 0 || r.status === 429) break;
+    if (r.status === 403) await env.DB.prepare('UPDATE users SET blocked=1 WHERE id=?').bind(p.user_id).run();
+    await env.DB.prepare('UPDATE pro SET note=? WHERE user_id=?').bind(paid ? 'end3:' + p.pro_until : 'trial1', p.user_id).run();
+  }
+  return n;
 }
