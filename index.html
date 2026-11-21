@@ -472,7 +472,7 @@ const IC = {
 // Ссылки и цены продуктов в Tribute (заполняются, когда продукты созданы)
 const PAY = {
   year: { url: '', price: '', per: '', note: 'выгоднее всего' },
-  month: { url: '', price: '', per: '', note: '' }
+  month: { url: 'https://web.tribute.tg/p/LaJ', price: '999 ₽', per: 'на 30 дней', note: '' }
 };
 const TRIAL_DAYS = 15, FREE_HABITS = 4, DAY_MS = 86400000;
 function proState() {
@@ -1363,7 +1363,7 @@ function renderLocked(what) {
 }
 function openPaywall(reason) {
   draft = null; rdraft = null; pdraft = null; paywallOpen = true;
-  UI.payReason = reason || ''; UI.payPlan = UI.payPlan || 'year';
+  UI.payReason = reason || ''; UI.payPlan = UI.payPlan && PAY[UI.payPlan].url ? UI.payPlan : (PAY.year.url ? 'year' : 'month');
   drawPaywall(); showSheet();
 }
 function drawPaywall() {
@@ -1378,7 +1378,7 @@ function drawPaywall() {
     ${st.trial ? `<div class="info" style="margin:6px auto 4px">${ico('star', 'width:16px;height:16px')}Пробный период: осталось ${daysLeft(st.trialEnds)} ${plural(daysLeft(st.trialEnds), 'день', 'дня', 'дней')}</div>` : ''}
     ${st.paid ? `<div class="info" style="margin:6px auto 4px">${ico('ok', 'width:16px;height:16px')}Pro уже активен — можно продлить</div>` : ''}</div>
     <div class="feats">${PRO_FEATURES.map(([i, a, b]) => `<div><span class="ib">${ico(i)}</span><span class="tx"><b>${a}</b><small style="color:var(--mut)">${b}</small></span></div>`).join('')}</div>
-    <div class="plans">${plan('year', 'Год')}${plan('month', 'Месяц')}</div>
+    <div class="plans">${PAY.year.url || !PAY.month.url ? plan('year', 'Год') : ''}${plan('month', 'Месяц')}</div>
     <button class="btn" data-act="ppay" ${ready && inTg ? '' : 'disabled'}>${ready ? 'Оплатить' : 'Оплата скоро'}</button>
     <p class="note" style="margin-top:12px">${inTg ? 'Оплата через Tribute — картой любого банка или криптовалютой. Pro включится автоматически, и бот пришлёт подтверждение.' : 'Оплата доступна, когда приложение открыто в Телеграме через @maliyshagbot.'}</p>`;
 }

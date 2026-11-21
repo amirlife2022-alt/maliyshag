@@ -25,7 +25,7 @@ jobs:
       WORKER_NAME: maliyshag-api
       DB_NAME: maliyshag-db
       APP_URL: https://amirlife2022-alt.github.io/maliyshag/
-      TRIBUTE_MONTH_ID: ''
+      TRIBUTE_MONTH_ID: 'LaJ'
       TRIBUTE_YEAR_ID: ''
       WRANGLER: npx --yes wrangler@4.162.0
     steps:

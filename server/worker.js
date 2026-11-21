@@ -411,12 +411,33 @@ async function tributeSigOk(raw, sig, key) {
   const h = hex(mac), b = b64(mac), s = sig.trim().replace(/^sha256=/, '');
   return s.toLowerCase() === h || s === b;
 }
-const daysFor = (env, productId) => {
-  const id = String(productId || '');
-  if (id && id === String(env.TRIBUTE_YEAR_ID || '')) return [366, 'year'];
-  if (id && id === String(env.TRIBUTE_MONTH_ID || '')) return [31, 'month'];
-  return [31, 'month']; // неизвестный продукт: считаем месяцем и пишем в лог
-};
+const PLAN_DAYS = { year: [366, 'year'], month: [31, 'month'] };
+// TRIBUTE_*_ID может быть числовым id или кодом из ссылки (web.tribute.tg/p/LaJ).
+// Если в вебхуке пришёл числовой id, которого нет в настройках, один раз спрашиваем Tribute API и запоминаем.
+async function planFor(env, productId) {
+  const id = String(productId || ''), Y = String(env.TRIBUTE_YEAR_ID || ''), M = String(env.TRIBUTE_MONTH_ID || '');
+  if (!id) return PLAN_DAYS.month;
+  if (Y && id === Y) return PLAN_DAYS.year;
+  if (M && id === M) return PLAN_DAYS.month;
+  const mk = 'trib_prod:' + id;
+  const cached = await env.DB.prepare('SELECT v FROM meta WHERE k=?').bind(mk).first();
+  if (cached && PLAN_DAYS[cached.v]) return PLAN_DAYS[cached.v];
+  let plan = null;
+  try {
+    const r = await fetch('https://tribute.tg/api/v1/products/' + encodeURIComponent(id), { headers: { 'Api-Key': env.TRIBUTE_API_KEY || '', Accept: 'application/json' } });
+    const j = await r.json().catch(() => ({}));
+    const p = j.product || j.data || j;
+    const links = [p.link, p.webLink, p.web_link, p.url].filter(Boolean).map(String);
+    const ends = code => code && links.some(l => l.replace(/[?#].*$/, '').replace(/\/+$/, '').endsWith('/' + code) || l.includes('startapp=p' + code));
+    if (ends(Y)) plan = 'year'; else if (ends(M)) plan = 'month';
+    else if (/год|year|12\s*мес/i.test(String(p.name || ''))) plan = 'year';
+    else if (/месяц|month/i.test(String(p.name || ''))) plan = 'month';
+    console.log('tribute: product', id, r.status, p && p.name, links.join(' '), '→', plan);
+  } catch (e) { console.warn('tribute: product lookup failed', id, String(e)); }
+  if (plan) { await env.DB.prepare('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)').bind(mk, plan).run(); return PLAN_DAYS[plan]; }
+  console.warn('tribute: unknown product', id, '— считаем месяцем');
+  return PLAN_DAYS.month;
+}
 async function onTribute(req, env) {
   const raw = await req.text();
   if (!(await tributeSigOk(raw, req.headers.get('trbt-signature'), env.TRIBUTE_API_KEY))) { console.warn('tribute: bad signature'); return json({ ok: false }, 401); }
@@ -424,8 +445,7 @@ async function onTribute(req, env) {
   const name = String(ev.name || ''), pl = ev.payload || {}, tgId = Number(pl.telegram_user_id), now = Date.now();
   const isBuy = /^(new_digital_product|newDigitalProduct)$/.test(name), isRefund = /^(digital_product_refund|digitalProductRefund)$/.test(name);
   if (!tgId || (!isBuy && !isRefund)) { console.log('tribute: ignored event', name); return json({ ok: true }); }
-  const [days, plan] = daysFor(env, pl.product_id);
-  if (String(pl.product_id || '') && ![String(env.TRIBUTE_YEAR_ID || ''), String(env.TRIBUTE_MONTH_ID || '')].includes(String(pl.product_id))) console.warn('tribute: unknown product', pl.product_id);
+  const [days, plan] = await planFor(env, pl.product_id);
   const key = (await sha256hex([name, tgId, pl.product_id, pl.purchase_id || pl.id || '', ev.created_at || '', pl.amount || ''].join('|'))).slice(0, 40);
   const ins = await env.DB.prepare('INSERT OR IGNORE INTO purchases (id, user_id, product_id, plan, kind, amount, currency, created_at, raw) VALUES (?,?,?,?,?,?,?,?,?)')
     .bind(key, tgId, String(pl.product_id || ''), plan, isBuy ? 'buy' : 'refund', Number(pl.amount) || 0, String(pl.currency || ''), now, raw.slice(0, 2000)).run();
