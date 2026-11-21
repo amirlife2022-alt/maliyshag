@@ -445,6 +445,8 @@ async function onTribute(req, env) {
   let ev; try { ev = JSON.parse(raw); } catch (e) { return json({ ok: false }, 400); }
   const name = String(ev.name || ''), pl = ev.payload || {}, tgId = Number(pl.telegram_user_id), now = Date.now();
   const isBuy = /^(new_digital_product|newDigitalProduct)$/.test(name), isRefund = /^(digital_product_refund|digitalProductRefund)$/.test(name);
+  const subKind = { new_subscription: 'new', newSubscription: 'new', renewed_subscription: 'renew', renewedSubscription: 'renew', cancelled_subscription: 'cancel', cancelledSubscription: 'cancel' }[name];
+  if (tgId && subKind) return await onTributeSub(env, ev, pl, tgId, subKind, raw, now);
   if (!tgId || (!isBuy && !isRefund)) { console.log('tribute: ignored event', name); return json({ ok: true }); }
   const [days, plan] = await planFor(env, pl.product_id);
   const key = (await sha256hex([name, tgId, pl.product_id, pl.purchase_id || pl.id || '', ev.created_at || '', pl.amount || ''].join('|'))).slice(0, 40);
@@ -463,11 +465,36 @@ async function onTribute(req, env) {
     : { chat_id: tgId, text: 'Оплата Qawiyy Pro возвращена. Pro отключён.' });
   return json({ ok: true });
 }
+// Подписка Tribute на закрытый канал «Qawiyy Pro»: оплата картой прямо в Телеграме, автопродление.
+// Pro действует до expires_at из уведомления. Отмена = выключено автопродление, доступ сохраняется до expires_at.
+const fmtDate = ms => { const d = new Date(ms); return `${d.getUTCDate()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`; };
+async function onTributeSub(env, ev, pl, tgId, kind, raw, now) {
+  const period = String(pl.period || '').toLowerCase(), yearly = /year|annual|год/.test(period);
+  const exp = Date.parse(pl.expires_at || '') || 0;
+  const key = (await sha256hex([ev.name, tgId, pl.subscription_id || '', pl.period_id || '', pl.expires_at || '', ev.created_at || ''].join('|'))).slice(0, 40);
+  const ins = await env.DB.prepare('INSERT OR IGNORE INTO purchases (id, user_id, product_id, plan, kind, amount, currency, created_at, raw) VALUES (?,?,?,?,?,?,?,?,?)')
+    .bind(key, tgId, 'sub:' + (pl.subscription_id || '') + ':' + (pl.period_id || ''), yearly ? 'year' : 'month', kind === 'cancel' ? 'sub-cancel' : 'buy', kind === 'cancel' ? 0 : (Number(pl.price ?? pl.amount) || 0), String(pl.currency || ''), now, raw.slice(0, 2000)).run();
+  if (!ins.meta || !ins.meta.changes) return json({ ok: true, duplicate: true });
+  await env.DB.prepare('INSERT OR IGNORE INTO pro (user_id, trial_start, pro_until, updated_at) VALUES (?, ?, 0, ?)').bind(tgId, now, now).run();
+  const cur = await env.DB.prepare('SELECT pro_until FROM pro WHERE user_id=?').bind(tgId).first();
+  if (kind === 'cancel') {
+    // автопродление выключено: оставляем оплаченный срок, только убираем пометку автопродления
+    const until = Math.max(cur.pro_until || 0, exp);
+    await env.DB.prepare('UPDATE pro SET pro_until=?, plan=?, updated_at=? WHERE user_id=?').bind(until, yearly ? 'year' : 'month', now, tgId).run();
+    if (until > now) await tgCall(env, 'sendMessage', { chat_id: tgId, parse_mode: 'HTML', text: `Автопродление Qawiyy Pro выключено.\nPro продолжает работать до <b>${fmtDate(until)}</b>.`, reply_markup: appButton(env) });
+    return json({ ok: true });
+  }
+  // запас 1 день, чтобы Pro не мигал, пока Tribute списывает продление
+  const until = Math.max(cur.pro_until || 0, exp ? exp + 86400000 : now + (yearly ? 366 : 31) * 86400000);
+  await env.DB.prepare('UPDATE pro SET pro_until=?, plan=?, note=NULL, updated_at=? WHERE user_id=?').bind(until, yearly ? 'sub-year' : 'sub-month', now, tgId).run();
+  if (kind === 'new') await tgCall(env, 'sendMessage', { chat_id: tgId, parse_mode: 'HTML', text: `💎 <b>Qawiyy Pro активирован!</b>\n\nСпасибо за поддержку 🤍 Pro действует до <b>${fmtDate(until)}</b> и продлится автоматически.\nОткрыт «План», напоминания, статистика года и все коллекции иконок.`, reply_markup: appButton(env) });
+  return json({ ok: true });
+}
 export async function runProNotices(env, now, budget) {
   if (budget <= 0) return 0;
   const day = 86400000;
   const { results } = await env.DB.prepare(`SELECT p.*, u.blocked FROM pro p JOIN users u ON u.id = p.user_id WHERE u.blocked = 0 AND (
-      (p.pro_until > ?1 AND p.pro_until < ?1 + 3 * ${day} AND COALESCE(p.note, '') NOT LIKE 'end3:%') OR
+      (p.pro_until > ?1 AND p.pro_until < ?1 + 3 * ${day} AND COALESCE(p.note, '') NOT LIKE 'end3:%' AND COALESCE(p.plan, '') NOT LIKE 'sub-%') OR
       ((p.pro_until IS NULL OR p.pro_until <= ?1) AND p.trial_start + ${TRIAL_DAYS} * ${day} > ?1 AND p.trial_start + ${TRIAL_DAYS} * ${day} < ?1 + ${day} AND COALESCE(p.note, '') != 'trial1')
     ) LIMIT ?2`).bind(now, budget).all();
   let n = 0;

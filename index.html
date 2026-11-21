@@ -471,6 +471,8 @@ const IC = {
 };
 /* ---------- Qawiyy Pro ---------- */
 // Ссылки и цены продуктов в Tribute (заполняются, когда продукты созданы)
+// Подписка Tribute (закрытый канал): карта любой страны прямо в Телеграме. Если задана — главная и единственная кнопка.
+const PAY_SUB = '';
 const PAY = {
   year: { url: 'https://t.me/tribute/app?startapp=pLaL', web: 'https://web.tribute.tg/p/LaL', price: '6 000 ₽', per: '500 ₽ в месяц вместо 999 ₽', note: 'полгода в подарок' },
   month: { url: 'https://t.me/tribute/app?startapp=pLaJ', web: 'https://web.tribute.tg/p/LaJ', price: '999 ₽', per: 'на 30 дней', note: '' }
@@ -1368,7 +1370,7 @@ function openPaywall(reason) {
   drawPaywall(); showSheet();
 }
 function drawPaywall() {
-  const st = proState(), ready = PAY.year.url || PAY.month.url;
+  const st = proState(), ready = PAY_SUB || PAY.year.url || PAY.month.url;
   const plan = (k, title) => { const p = PAY[k]; return `<button class="plancard ${UI.payPlan === k ? 'on' : ''}" data-act="pplan" data-v="${k}" aria-pressed="${UI.payPlan === k}">
       <span class="rad"></span><span class="tx"><b>${title}</b><small>${p.per || (k === 'year' ? 'один платёж на 12 месяцев' : 'на 30 дней')}</small></span>
       <span class="pr">${p.price || '—'}${p.note ? `<i>${p.note}</i>` : ''}</span></button>`; };
@@ -1380,19 +1382,23 @@ function drawPaywall() {
     ${st.paid ? `<div class="info" style="margin:6px auto 4px">${ico('ok', 'width:16px;height:16px')}Pro уже активен — можно продлить</div>` : ''}</div>
     <div class="feats">${PRO_FEATURES.map(([i, a, b]) => `<div><span class="ib">${ico(i)}</span><span class="tx"><b>${a}</b><small style="color:var(--mut)">${b}</small></span></div>`).join('')}</div>
     <div class="plans">${PAY.year.url || !PAY.month.url ? plan('year', 'Год') : ''}${plan('month', 'Месяц')}</div>
-    <button class="btn" data-act="ppay" ${ready && inTg ? '' : 'disabled'}>${ready ? 'Оплатить в Телеграме' : 'Оплата скоро'}</button>
-    ${ready && inTg ? `<p class="note" style="margin-top:8px">СБП (российские банки) или звёзды Telegram — прямо здесь, без браузера.</p>
+    ${PAY_SUB ? `<button class="btn" data-act="ppay" ${inTg ? '' : 'disabled'}>Оформить Pro</button>
+    <p class="note" style="margin-top:8px">Картой любой страны, СБП или звёздами — прямо в Телеграме. Продлевается автоматически, отменить можно в любой момент.</p>` : `<button class="btn" data-act="ppay" ${ready && inTg ? '' : 'disabled'}>${ready ? 'Оплатить в Телеграме' : 'Оплата скоро'}</button>`}
+    ${!PAY_SUB && ready && inTg ? `<p class="note" style="margin-top:8px">СБП (российские банки) или звёзды Telegram — прямо здесь, без браузера.</p>
     <button class="btn ghost" data-act="ppayweb" style="margin-top:14px">${ico('card')}Картой любой страны · ${(PAY[UI.payPlan] || PAY.year).price}</button>
     <p class="note" style="margin-top:8px">Visa, Mastercard, Мир. Откроется сайт Tribute — войди через Telegram под этим же аккаунтом. Внутри Телеграма картой платить нельзя: это правило самого Telegram.</p>` : ''}
     <p class="note" style="margin-top:12px">${inTg ? 'Pro включится автоматически, и бот пришлёт подтверждение.' : 'Оплата доступна, когда приложение открыто в Телеграме через @maliyshagbot.'}</p>`;
 }
 function payNow(web) {
-  const p = PAY[UI.payPlan] || PAY.year; if (!p.url) { toast('Оплата скоро появится'); return; }
   haptic('light');
+  if (PAY_SUB && !web) { try { if (inTg && tg.openTelegramLink) tg.openTelegramLink(PAY_SUB); else window.open(PAY_SUB, '_blank'); } catch (e) { window.open(PAY_SUB, '_blank'); } }
+  else {
+  const p = PAY[UI.payPlan] || PAY.year; if (!p.url) { toast('Оплата скоро появится'); return; }
   try {
     if (web) { if (inTg && tg.openLink) tg.openLink(p.web); else window.open(p.web, '_blank'); }
     else if (inTg && tg.openTelegramLink) tg.openTelegramLink(p.url); else window.open(p.web || p.url, '_blank');
   } catch (e) { window.open(p.web || p.url, '_blank'); }
+  }
   // после оплаты проверяем статус несколько раз
   let n = 0; const iv = setInterval(() => { if (++n > 12 || proState().paid) return clearInterval(iv); loadRemSettings(); }, 10000);
 }
