@@ -183,10 +183,10 @@ async function onTelegram(req, env) {
   } else if (cmd === '/admin') {
     const cur = await env.DB.prepare("SELECT v FROM meta WHERE k='admin'").first();
     if (!cur) { await env.DB.prepare("INSERT INTO meta (k, v) VALUES ('admin', ?)").bind(String(from.id)).run(); reply = { text: 'Ты назначен администратором. Статистика: /stats' }; }
-    else reply = { text: cur.v === String(from.id) ? 'Ты уже администратор. Статистика: /stats' : 'Администратор уже назначен.' };
+    else reply = cur.v === String(from.id) ? { text: 'Ты уже администратор. Статистика: /stats' } : { text: 'Нажми кнопку ниже, чтобы открыть трекер.\n\nКоманды: /on — включить напоминания, /stop — выключить.', reply_markup: appButton(env) };
   } else if (cmd === '/stats') {
     const cur = await env.DB.prepare("SELECT v FROM meta WHERE k='admin'").first();
-    if (!cur || cur.v !== String(from.id)) reply = { text: 'Команда доступна только администратору.' };
+    if (!cur || cur.v !== String(from.id)) reply = { text: 'Нажми кнопку ниже, чтобы открыть трекер.\n\nКоманды: /on — включить напоминания, /stop — выключить.', reply_markup: appButton(env) };
     else {
       const q = s => env.DB.prepare(s).bind(now).first();
       const all = await env.DB.prepare('SELECT COUNT(*) n FROM users').first();
